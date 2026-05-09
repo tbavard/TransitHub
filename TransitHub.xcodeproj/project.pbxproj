@@ -32,7 +32,6 @@
 		78F728EECD93F11C442705EF /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 29D661C8167CE6A113FEDEE0 /* Localizable.strings */; };
 		8D780064B6CE902FE44E28DF /* GTFSModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B6B2C74DD9508FF81E3693A /* GTFSModels.swift */; };
 		8F78F48C95FA563B7E40068E /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAD09BD44F65E9E3D828B630 /* AppViewModel.swift */; };
-		96F9F3FB8D809C6D3A928E9E /* MobilityDBConfig.example.plist in Resources */ = {isa = PBXBuildFile; fileRef = 199CDB8E5A43CA006D5DEC5A /* MobilityDBConfig.example.plist */; };
 		A6D0EADD4FF4AE56BE8F0FB9 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2384F5D1EB75B15E40D7062 /* FavoritesView.swift */; };
 		AEEA9DDBD12E00AC3A3067BA /* GTFSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EEE1394D1E35F2AAF33146 /* GTFSService.swift */; };
 		AF4E632E2EC93617ED0F4457 /* NoProvidersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7541B5C9B13D49E01B30A942 /* NoProvidersView.swift */; };
@@ -72,7 +71,6 @@
 		0C3781C6915F32CAF969EA9A /* MobilityDatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobilityDatabaseService.swift; sourceTree = "<group>"; };
 		110FFC6C0409610D1EF69120 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		169E1201D03F61BA2032771B /* TransitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitProvider.swift; sourceTree = "<group>"; };
-		199CDB8E5A43CA006D5DEC5A /* MobilityDBConfig.example.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = MobilityDBConfig.example.plist; sourceTree = "<group>"; };
 		21C78F5D2FAE96B600B2B249 /* TransitHubTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TransitHubTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		27D1F3F68CB55EEC6E20BC7C /* PlanStopPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanStopPickerView.swift; sourceTree = "<group>"; };
 		2A2A00A290759D8374CF1E9F /* TripPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
@@ -178,7 +176,6 @@
 			children = (
 				942D09D0B6B533A543ECC25D /* Assets.xcassets */,
 				110FFC6C0409610D1EF69120 /* Info.plist */,
-				199CDB8E5A43CA006D5DEC5A /* MobilityDBConfig.example.plist */,
 				D5A30E9211F222DB77624195 /* MobilityDBConfig.plist */,
 				29D661C8167CE6A113FEDEE0 /* Localizable.strings */,
 			);
@@ -403,7 +400,6 @@
 			files = (
 				328371CA44E545A89324C3F1 /* Assets.xcassets in Resources */,
 				78F728EECD93F11C442705EF /* Localizable.strings in Resources */,
-				96F9F3FB8D809C6D3A928E9E /* MobilityDBConfig.example.plist in Resources */,
 				24B375460C575150900E960F /* MobilityDBConfig.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
