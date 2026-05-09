@@ -1,8 +1,2 @@
-Pods
-MonTransit.xcodeproj/project.xcworkspace/xcuserdata/Thibault.xcuserdatad/UserInterfaceState.xcuserstate
-MonTransit.xcodeproj/xcuserdata/Thibault.xcuserdatad/xcdebugger/Breakpoints_v2.xcbkptlist
-MonTransit.xcodeproj/xcuserdata/Thibault.xcuserdatad/xcschemes/MonTransit.xcscheme
-MonTransit.xcodeproj/xcuserdata/Thibault.xcuserdatad/xcschemes/xcschememanagement.plist
-MonTransit.xcworkspace/contents.xcworkspacedata
-MonTransit.xcworkspace/xcuserdata/Thibault.xcuserdatad/UserInterfaceState.xcuserstate
-MonTransit.xcworkspace/xcuserdata/Thibault.xcuserdatad/xcdebugger/Breakpoints_v2.xcbkptlist
+
+Sources/TransitHub/Resources/MobilityDBConfig.plist

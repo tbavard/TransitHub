@@ -1,0 +1,79 @@
+name: TransitHub
+options:
+  bundleIdPrefix: com.yourcompany
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+  developmentLanguage: fr
+
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.19
+  SwiftProtobuf:
+    url: https://github.com/apple/swift-protobuf.git
+    from: 1.28.0
+
+targets:
+
+  # ── Main App ─────────────────────────────────────────────────────────────
+  TransitHub:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - Sources/TransitHub
+      - Sources/Shared
+    info:
+      path: Sources/TransitHub/Resources/Info.plist
+      properties:
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSLocationWhenInUseUsageDescription: "TransitHub uses your location to show nearby stops."
+        UILaunchStoryboardName: LaunchScreen
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+    entitlements:
+      path: Sources/TransitHub/TransitHub.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.yourcompany.TransitHub
+    dependencies:
+      - package: ZIPFoundation
+      - package: SwiftProtobuf
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.TransitHub
+      SWIFT_VERSION: "5.9"
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  # ── Widget Extension ──────────────────────────────────────────────────────
+  TransitHubWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - WidgetExtension
+      - Sources/Shared
+    info:
+      path: WidgetExtension/Info.plist
+      properties:
+        CFBundleDisplayName: TransitHubWidget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: WidgetExtension/TransitHubWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.yourcompany.TransitHub
+    dependencies:
+      - target: TransitHub
+        embed: false
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.TransitHub.widget
+      SWIFT_VERSION: "5.9"
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+      APPLICATION_EXTENSION_API_ONLY: "YES"
