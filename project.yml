@@ -49,6 +49,11 @@ targets:
       SWIFT_VERSION: "5.9"
       IPHONEOS_DEPLOYMENT_TARGET: "17.0"
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # Generated scheme with the unit tests attached, so ⌘U runs them.
+    scheme:
+      testTargets:
+        - TransitHubTests
+      gatherCoverageData: true
 
   # ── Widget Extension ──────────────────────────────────────────────────────
   TransitHubWidget:
@@ -77,3 +82,20 @@ targets:
       SWIFT_VERSION: "5.9"
       IPHONEOS_DEPLOYMENT_TARGET: "17.0"
       APPLICATION_EXTENSION_API_ONLY: "YES"
+
+  # ── Unit tests ────────────────────────────────────────────────────────────
+  # Hosted in the app so `@testable import TransitHub` resolves; XcodeGen
+  # sets TEST_HOST / BUNDLE_LOADER from the app dependency.
+  TransitHubTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - Tests/TransitHubTests
+    dependencies:
+      - target: TransitHub
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.TransitHubTests
+      SWIFT_VERSION: "5.9"
+      IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+      GENERATE_INFOPLIST_FILE: "YES"
