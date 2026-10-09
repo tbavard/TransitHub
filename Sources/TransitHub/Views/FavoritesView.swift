@@ -164,10 +164,79 @@ struct FavoritesView: View {
                 .accessibilityLabel(Text(ns.label))
                 .accessibilityHint(Text("Voir tous les avis"))
             }
+
+            if let next = nextFavoriteDeparture {
+                nextFavoriteBanner(stop: next.stop, entry: next.entry)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
+        .animation(.snappy, value: nextFavoriteDeparture?.entry.tripId)
         .padding(Spacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .brandGradientHeader()
+    }
+
+    // MARK: - Next favorite departure (header shortcut)
+
+    /// Soonest upcoming (live-adjusted, not canceled) departure across all
+    /// favorite stops, within the next hour.
+    private var nextFavoriteDeparture: (stop: Stop, entry: ScheduleEntry)? {
+        appVM.favoriteStops
+            .compactMap { stop -> (stop: Stop, entry: ScheduleEntry)? in
+                let live = appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop)
+                guard let entry = live
+                    .filter({ !$0.hasDepartedToday && !$0.isCanceled && $0.minutesUntilDeparture <= 60 })
+                    .min(by: { $0.minutesUntilDeparture < $1.minutesUntilDeparture })
+                else { return nil }
+                return (stop: stop, entry: entry)
+            }
+            .min { $0.entry.minutesUntilDeparture < $1.entry.minutesUntilDeparture }
+    }
+
+    private func nextFavoriteBanner(stop: Stop, entry: ScheduleEntry) -> some View {
+        NavigationLink(value: AppDestination.stop(stop)) {
+            HStack(spacing: Spacing.md) {
+                RoutePill(shortName: entry.routeShortName, color: entry.routeColor)
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(stop.name)
+                        .font(Typography.body.weight(.semibold))
+                        .lineLimit(1)
+                    if let towards = A11y.towards(entry.headsign) {
+                        Text(towards)
+                            .font(Typography.caption)
+                            .opacity(0.85)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: Spacing.sm)
+                if entry.delaySeconds != nil {
+                    LiveIndicator(color: .white)
+                }
+                Text(entry.minutesUntilDeparture == 0
+                     ? String(localized: "countdown.imminent")
+                     : "\(entry.minutesUntilDeparture) min")
+                    .font(.system(.title3, design: .rounded, weight: .heavy))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(.white)
+            .padding(Spacing.md)
+            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: Radius.lg))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(A11y.join([
+            String(localized: "a11y.next"),
+            A11y.route(entry.routeShortName),
+            A11y.towards(entry.headsign),
+            String(format: String(localized: "a11y.stop"), stop.name),
+            A11y.countdown(entry.minutesUntilDeparture),
+            A11y.liveStatus(of: entry)
+        ]))
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Unified stops section
