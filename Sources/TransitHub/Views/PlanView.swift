@@ -46,6 +46,11 @@ struct PlanView: View {
                 }
             }
             .navigationTitle("Itinéraire")
+            // Success / error tap when a search finishes.
+            .sensoryFeedback(trigger: isPlanning) { wasPlanning, planning in
+                guard wasPlanning, !planning else { return nil }
+                return planError == nil ? .success : .error
+            }
             .sheet(item: $pickerRole) { role in
                 PlanStopPickerView { endpoint in
                     switch role {
@@ -294,6 +299,7 @@ struct ItineraryCard: View {
                                         : Color(.separator).opacity(0.25),
                               lineWidth: isTracked ? 1.5 : 0.5)
         )
+        .trackingFeedback(isTracked)
     }
 
     private var goButton: some View {

@@ -185,6 +185,7 @@ struct StopDetailView: View {
         }
         .padding(Spacing.lg)
         .card()
+        .favoriteFeedback(isFavorite)
     }
 
     private var actionBar: some View {
@@ -286,6 +287,7 @@ struct StopDetailView: View {
             Text("Toutes les lignes").tag(true)
         }
         .pickerStyle(.segmented)
+        .selectionFeedback(showAllRoutes)
     }
 
     // MARK: - Alerts
@@ -560,6 +562,7 @@ struct NextDepartureHero: View {
         .background(tint.livelyGradient, in: RoundedRectangle(cornerRadius: Radius.xl))
         .shadow(color: tint.opacity(0.35), radius: 10, x: 0, y: 6)
         .animation(.snappy, value: countdownText)
+        .imminentFeedback(!isPast && !entry.isCanceled && minutes == 0)
     }
 }
 

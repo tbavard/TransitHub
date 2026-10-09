@@ -172,6 +172,7 @@ struct RouteDetailView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .selectionFeedback(directionId)
                 }
 
                 if isLoading {

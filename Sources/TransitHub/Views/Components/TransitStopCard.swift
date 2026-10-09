@@ -20,6 +20,10 @@ struct TransitStopCard: View {
     private let rowDividerInset: CGFloat = Spacing.lg + 44 + Spacing.md
 
     var body: some View {
+        content.favoriteFeedback(isFavorite)
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, Spacing.lg)

@@ -364,6 +364,7 @@ struct TrackDepartureButton: View {
             }
             .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.2), value: isCurrentlyTracking)
+            .trackingFeedback(isCurrentlyTracking)
         }
     }
 }
