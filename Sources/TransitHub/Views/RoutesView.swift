@@ -28,13 +28,6 @@ struct RoutesView: View {
                 }
             }
             .navigationTitle("Lignes")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
             .appDestinations()
         }
     }

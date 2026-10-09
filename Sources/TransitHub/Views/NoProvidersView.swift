@@ -3,10 +3,13 @@ import SwiftUI
 // MARK: - NoProvidersView
 //
 // Empty-state CTA shown by every main tab when the user hasn't added any
-// transit providers yet. Drills directly into `SettingsView`, which is also
-// where the "+ Add" button lives.
+// transit providers yet. Opens the provider search directly — Settings
+// itself is only reachable from the dashboard.
 
 struct NoProvidersView: View {
+    @EnvironmentObject var providersStore: UserProvidersStore
+    @State private var showAddProvider = false
+
     var body: some View {
         VStack(spacing: Spacing.xxl) {
             ZStack {
@@ -28,8 +31,8 @@ struct NoProvidersView: View {
                     .padding(.horizontal, Spacing.xxl)
             }
 
-            NavigationLink {
-                SettingsView()
+            Button {
+                showAddProvider = true
             } label: {
                 Label("Ajouter un réseau", systemImage: "plus.circle.fill")
                     .font(.headline)
@@ -42,5 +45,9 @@ struct NoProvidersView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showAddProvider) {
+            AddProviderView()
+                .environmentObject(providersStore)
+        }
     }
 }

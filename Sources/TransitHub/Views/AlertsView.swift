@@ -64,11 +64,6 @@ struct AlertsView: View {
             }
             .navigationTitle("Avis & Retards")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if appVM.isRefreshingRealtime {
                         ProgressView().scaleEffect(0.8)
