@@ -256,7 +256,8 @@ final class GTFSDatabase {
         let ph = serviceIds.map { _ in "?" }.joined(separator: ",")
         let sql = """
             SELECT st.departure_time, st.trip_id, t.trip_headsign,
-                   t.route_id, r.route_short_name, COALESCE(r.route_color,'')
+                   t.route_id, r.route_short_name, COALESCE(r.route_color,''),
+                   COALESCE(t.direction_id, 0)
             FROM stop_times st
             JOIN trips  t ON st.trip_id  = t.trip_id
             JOIN routes r ON t.route_id  = r.route_id
@@ -273,7 +274,8 @@ final class GTFSDatabase {
                 headsign:       col(stmt, 2),
                 routeId:        col(stmt, 3),
                 routeShortName: col(stmt, 4),
-                routeColor:     col(stmt, 5)
+                routeColor:     col(stmt, 5),
+                directionId:    Int(sqlite3_column_int(stmt, 6))
             ))
         }
         return result

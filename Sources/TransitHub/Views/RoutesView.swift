@@ -263,7 +263,10 @@ struct RouteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedStop) { stop in
             NavigationStack {
-                StopDetailView(stop: stop)
+                StopDetailView(
+                    stop: stop,
+                    routeContext: StopRouteContext(route: route, directionId: directionId)
+                )
             }
         }
         .task(id: directionId) {

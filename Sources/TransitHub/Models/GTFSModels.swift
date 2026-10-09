@@ -136,6 +136,9 @@ struct ScheduleEntry: Identifiable {
     let routeId: String
     let routeShortName: String
     let routeColor: String
+    /// GTFS trips.direction_id. Optional so callers that don't know it
+    /// (tests, legacy paths) can omit it.
+    var directionId: Int? = nil
 
     /// Returns "HH:MM" with 24h wrap for display
     var displayTime: String {
@@ -253,6 +256,65 @@ extension Array where Element == ScheduleEntry {
         .sorted {
             ($0.minutes.first ?? .max, $0.routeShortName) <
             ($1.minutes.first ?? .max, $1.routeShortName)
+        }
+    }
+}
+
+// MARK: - Stop route context
+
+/// The line + direction the user came from when opening a stop from a route's
+/// detail. When present, the stop screen shows only that line's departures.
+struct StopRouteContext: Hashable {
+    let route: Route
+    let directionId: Int
+}
+
+/// Departures at a stop for one route in one direction.
+struct StopDepartureGroup: Identifiable {
+    let id: String            // "routeId|directionId"
+    let routeId: String
+    let routeShortName: String
+    let routeColor: String
+    let headsign: String      // most frequent headsign in the group
+    let entries: [ScheduleEntry]  // sorted by departure time
+}
+
+extension Array where Element == ScheduleEntry {
+    /// Keeps only the departures of the context route, in its direction.
+    /// Falls back to the route regardless of direction when the feed doesn't
+    /// populate direction_id consistently, so the user never gets an empty
+    /// screen for a stop that is listed on that route.
+    func filtered(for context: StopRouteContext?) -> [ScheduleEntry] {
+        guard let context else { return self }
+        let onRoute = filter { $0.routeId == context.route.gtfsId }
+        let inDirection = onRoute.filter { $0.directionId == context.directionId }
+        return inDirection.isEmpty ? onRoute : inDirection
+    }
+
+    /// Groups departures by route AND direction (two directions of the same
+    /// line never share a grid), sorted naturally by route number.
+    func groupedByRouteAndDirection() -> [StopDepartureGroup] {
+        let groups = Dictionary(grouping: self) { "\($0.routeId)|\($0.directionId ?? -1)" }
+        return groups.compactMap { key, entries -> StopDepartureGroup? in
+            let sorted = entries.sorted { $0.departureTime < $1.departureTime }
+            guard let first = sorted.first else { return nil }
+            let headsignCounts = Dictionary(grouping: sorted, by: \.headsign).mapValues(\.count)
+            let headsign = headsignCounts.max {
+                ($0.value, $1.key) < ($1.value, $0.key)
+            }?.key ?? first.headsign
+            return StopDepartureGroup(
+                id: key,
+                routeId: first.routeId,
+                routeShortName: first.routeShortName,
+                routeColor: first.routeColor,
+                headsign: headsign,
+                entries: sorted
+            )
+        }
+        .sorted {
+            let order = $0.routeShortName.localizedStandardCompare($1.routeShortName)
+            if order != .orderedSame { return order == .orderedAscending }
+            return $0.headsign < $1.headsign
         }
     }
 }

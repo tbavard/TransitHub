@@ -31,6 +31,9 @@
 "Réessayer" = "Réessayer";
 "Aucun départ aujourd'hui" = "Aucun départ aujourd'hui";
 "Aucun service actif pour cet arrêt." = "Aucun service actif pour cet arrêt.";
+"Aucun service actif pour la ligne %@ à cet arrêt." = "Aucun service actif pour la ligne %@ à cet arrêt.";
+"Lignes affichées" = "Lignes affichées";
+"Toutes les lignes" = "Toutes les lignes";
 "Prochain départ" = "Prochain départ";
 
 // Computed strings — countdown

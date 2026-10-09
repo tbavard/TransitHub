@@ -7,36 +7,54 @@ struct StopDetailView: View {
     @EnvironmentObject var appVM: AppViewModel
     @EnvironmentObject var liveActivityManager: LiveActivityManager
     let stop: Stop
+    /// Set when the stop was opened from a route's detail: the screen then
+    /// shows only that line/direction, with an opt-in to see every line.
+    var routeContext: StopRouteContext? = nil
 
     @State private var schedule: [ScheduleEntry] = []
     @State private var isLoading = true
     @State private var error: Error?
     @State private var now = Date()
+    @State private var showAllRoutes = false
 
     private var isFavorite: Bool { appVM.isFavorite(stop) }
 
-    // Alerts that mention this stop directly, or affect a route that serves it.
+    /// The route context actually applied (nil once the user picks "all lines").
+    private var activeContext: StopRouteContext? {
+        showAllRoutes ? nil : routeContext
+    }
+
+    private var displayedSchedule: [ScheduleEntry] {
+        schedule.filtered(for: activeContext)
+    }
+
+    /// True when this stop is served by lines other than the context route —
+    /// only then is the "this line / all lines" picker worth showing.
+    private var servesOtherRoutes: Bool {
+        guard let ctx = routeContext else { return false }
+        return schedule.contains { $0.routeId != ctx.route.gtfsId }
+    }
+
+    // Alerts that mention this stop directly, or affect a route displayed here.
     private var stopAlerts: [ServiceAlert] {
-        let routeIds = Set(schedule.map { $0.routeId })
+        var routeIds = Set(displayedSchedule.map { $0.routeId })
+        if let ctx = activeContext { routeIds.insert(ctx.route.gtfsId) }
         return appVM.serviceAlerts.filter { alert in
             alert.affectedStopCodes.contains(stop.id) ||
-            !alert.affectedRouteIds.filter { routeIds.contains($0) }.isEmpty
+            alert.affectedRouteIds.contains { routeIds.contains($0) }
         }
     }
 
-    // Grouped by route short name, sorted by departure time within each group.
-    private var groupedByRoute: [(key: String, entries: [ScheduleEntry])] {
-        let groups = Dictionary(grouping: schedule) { $0.routeShortName }
-        return groups.sorted { lhs, rhs in
-            let lInt = Int(lhs.key), rInt = Int(rhs.key)
-            switch (lInt, rInt) {
-            case (nil, nil): return lhs.key < rhs.key
-            case (nil, _):   return true
-            case (_, nil):   return false
-            default:         return lInt! < rInt!
-            }
+    // One section per route AND direction, sorted naturally by route number.
+    private var departureGroups: [StopDepartureGroup] {
+        displayedSchedule.groupedByRouteAndDirection()
+    }
+
+    private var emptyScheduleDescription: Text {
+        if let ctx = activeContext {
+            return Text("Aucun service actif pour la ligne \(ctx.route.shortName) à cet arrêt.")
         }
-        .map { (key: $0.key, entries: $0.value.sorted { $0.departureTime < $1.departureTime }) }
+        return Text("Aucun service actif pour cet arrêt.")
     }
 
     private func nextEntry(for entries: [ScheduleEntry]) -> ScheduleEntry? {
@@ -57,6 +75,11 @@ struct StopDetailView: View {
                 stopHeaderCard
                     .padding(.horizontal, 16)
 
+                if servesOtherRoutes, let ctx = routeContext {
+                    routeScopePicker(ctx)
+                        .padding(.horizontal, Spacing.xl)
+                }
+
                 if !stopAlerts.isEmpty {
                     stopAlertsSection
                 }
@@ -72,22 +95,22 @@ struct StopDetailView: View {
                         Button("Réessayer") { Task { await loadSchedule() } }
                     }
                     .frame(minHeight: 300)
-                } else if schedule.isEmpty {
+                } else if displayedSchedule.isEmpty {
                     ContentUnavailableView(
                         "Aucun départ aujourd'hui",
                         systemImage: "clock.badge.xmark",
-                        description: Text("Aucun service actif pour cet arrêt.")
+                        description: emptyScheduleDescription
                     )
                     .frame(minHeight: 300)
                 } else {
-                    ForEach(groupedByRoute, id: \.key) { group in
+                    ForEach(departureGroups) { group in
                         Section {
                             routeSectionBody(group: group)
                         } header: {
                             RouteScheduleHeader(
-                                routeShortName: group.key,
-                                headsign: group.entries.first?.headsign ?? "",
-                                color: group.entries.first?.routeColor ?? ""
+                                routeShortName: group.routeShortName,
+                                headsign: group.headsign,
+                                color: group.routeColor
                             )
                         }
                     }
@@ -222,6 +245,16 @@ struct StopDetailView: View {
         }
     }
 
+    // MARK: - Route scope picker
+
+    private func routeScopePicker(_ ctx: StopRouteContext) -> some View {
+        Picker("Lignes affichées", selection: $showAllRoutes.animation(.snappy)) {
+            Text("Ligne \(ctx.route.shortName)").tag(false)
+            Text("Toutes les lignes").tag(true)
+        }
+        .pickerStyle(.segmented)
+    }
+
     // MARK: - Alerts
 
     @ViewBuilder
@@ -264,7 +297,7 @@ struct StopDetailView: View {
     // MARK: - Per-route section
 
     @ViewBuilder
-    private func routeSectionBody(group: (key: String, entries: [ScheduleEntry])) -> some View {
+    private func routeSectionBody(group: StopDepartureGroup) -> some View {
         let next = nextEntry(for: group.entries)
 
         VStack(alignment: .leading, spacing: 10) {
