@@ -29,21 +29,37 @@ enum RealtimeScheduleMerger {
                   abs(scheduled.timeIntervalSince(now)) < matchWindow
             else { return entry }
             var live = entry
-            live.realtime = status(for: entry, stopId: stopId, update: update, scheduled: scheduled)
+            live.realtime = status(stopId: stopId, stopSequence: entry.stopSequence,
+                                   update: update, scheduled: scheduled)
             return live
         }
     }
 
+    /// Live status of one trip at one stop, for callers without a
+    /// ScheduleEntry (trip planner, Live Activity). Same matching window as
+    /// `apply`.
+    static func status(tripId: String,
+                       stopId: String,
+                       stopSequence: Int?,
+                       scheduled: Date,
+                       updates: [String: TripUpdate],
+                       now: Date = Date()) -> RealtimeStatus? {
+        guard let update = updates[tripId],
+              abs(scheduled.timeIntervalSince(now)) < matchWindow
+        else { return nil }
+        return status(stopId: stopId, stopSequence: stopSequence, update: update, scheduled: scheduled)
+    }
+
     /// Live status of one departure, or nil when the update says nothing
     /// usable about this stop.
-    static func status(for entry: ScheduleEntry,
-                       stopId: String,
+    static func status(stopId: String,
+                       stopSequence: Int?,
                        update: TripUpdate,
                        scheduled: Date) -> RealtimeStatus? {
         if update.isCanceled { return .canceled }
 
         // 1. An update for this very stop.
-        if let own = update.stopTimeUpdates.first(where: { matches($0, entry: entry, stopId: stopId) }) {
+        if let own = update.stopTimeUpdates.first(where: { matches($0, stopSequence: stopSequence, stopId: stopId) }) {
             if own.isSkipped { return .skipped }
             if let delay = own.departureDelay ?? own.arrivalDelay {
                 return .delay(seconds: delay)
@@ -58,7 +74,7 @@ enum RealtimeScheduleMerger {
         //    the delay of the nearest preceding updated stop. Only possible
         //    with relative delays (absolute times would need that other
         //    stop's scheduled time) and known stop sequences.
-        guard let seq = entry.stopSequence else { return nil }
+        guard let seq = stopSequence else { return nil }
         let preceding = update.stopTimeUpdates
             .filter { $0.stopSequence > 0 && $0.stopSequence < seq && !$0.isSkipped }
             .max { $0.stopSequence < $1.stopSequence }
@@ -73,8 +89,8 @@ enum RealtimeScheduleMerger {
     /// Matches by stop_sequence when both sides have one (a loop route visits
     /// the same stop twice), by stop_id otherwise. Sequence 0 is treated as
     /// "absent" because the decoder can't distinguish it from a missing field.
-    private static func matches(_ stu: StopTimeUpdate, entry: ScheduleEntry, stopId: String) -> Bool {
-        if stu.stopSequence > 0, let seq = entry.stopSequence, seq > 0 {
+    private static func matches(_ stu: StopTimeUpdate, stopSequence: Int?, stopId: String) -> Bool {
+        if stu.stopSequence > 0, let seq = stopSequence, seq > 0 {
             return stu.stopSequence == seq
         }
         return stu.stopId == stopId

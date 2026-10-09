@@ -53,6 +53,8 @@ struct TransitLeg: Identifiable, Hashable {
     let arrivalTime: String     // HH:MM:SS (may exceed 24h)
     let tripId: String
     let numStops: Int           // stops traversed (inclusive of both ends)
+    /// Live delay at the boarding stop from GTFS-RT (nil = timetable only).
+    var liveDelaySeconds: Int? = nil
 
     /// Minutes the user spends aboard this vehicle.
     var onboardMinutes: Int {

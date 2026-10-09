@@ -375,6 +375,8 @@ final class GTFSDatabase {
         let departureTime: String   // at from_stop
         let arrivalTime: String     // at to_stop
         let stopCount: Int          // inclusive of both ends
+        let fromSequence: Int
+        let toSequence: Int
     }
 
     /// Finds trips that visit one of `fromStopIds` and later (higher stop_sequence)
@@ -400,7 +402,8 @@ final class GTFSDatabase {
                    t.trip_headsign,
                    st1.stop_id, st2.stop_id,
                    st1.departure_time, st2.arrival_time,
-                   (st2.stop_sequence - st1.stop_sequence + 1) AS stops_between
+                   (st2.stop_sequence - st1.stop_sequence + 1) AS stops_between,
+                   st1.stop_sequence, st2.stop_sequence
             FROM stop_times st1
             JOIN stop_times st2 ON st2.trip_id = st1.trip_id
                                  AND st2.stop_sequence > st1.stop_sequence
@@ -435,7 +438,9 @@ final class GTFSDatabase {
                 toStopId:       col(stmt, 7),
                 departureTime:  col(stmt, 8),
                 arrivalTime:    col(stmt, 9),
-                stopCount:      Int(sqlite3_column_int(stmt, 10))
+                stopCount:      Int(sqlite3_column_int(stmt, 10)),
+                fromSequence:   Int(sqlite3_column_int(stmt, 11)),
+                toSequence:     Int(sqlite3_column_int(stmt, 12))
             ))
         }
         return result

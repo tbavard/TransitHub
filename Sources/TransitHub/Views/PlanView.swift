@@ -334,14 +334,37 @@ struct ItineraryCard: View {
                         .font(.title3.weight(.bold))
                         .monospacedDigit()
                 }
-                Text("Durée : \(itin.totalMinutes) min")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: Spacing.s) {
+                    Text("Durée : \(itin.totalMinutes) min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let delay = itin.transitLegs.first?.liveDelaySeconds {
+                        liveBadge(delayMinutes: Int((Double(delay) / 60).rounded()))
+                    }
+                }
             }
             Spacer()
             if let t = itin.transitLegs.first {
                 RoutePill(shortName: t.routeShortName, color: t.routeColor)
             }
+        }
+    }
+
+    /// Times above already include the live delay; this says so.
+    private func liveBadge(delayMinutes m: Int) -> some View {
+        HStack(spacing: Spacing.xs) {
+            LiveIndicator()
+            Group {
+                if m >= 1 {
+                    Text("Retard \(m) min")
+                } else if m <= -1 {
+                    Text("Avance \(-m) min")
+                } else {
+                    Text("À l'heure")
+                }
+            }
+            .font(Typography.badge)
+            .foregroundStyle(m >= 1 ? Theme.soon : Theme.brandEnd)
         }
     }
 

@@ -69,6 +69,22 @@ final class RealtimeScheduleMergerTests: XCTestCase {
         XCTAssertNil(merged.first?.realtime)
     }
 
+    // MARK: - Trip-level lookup (trip planner, Live Activity)
+
+    func testTripLevelStatusMatchesBySequence() {
+        let update = trip(stus: [stu(stop: "S", seq: 5, depDelay: 120)])
+        let scheduled = Calendar.current.date(bySettingHour: 8, minute: 10, second: 0, of: now)!
+        let status = RealtimeScheduleMerger.status(tripId: "T1", stopId: "S", stopSequence: 5,
+                                                   scheduled: scheduled, updates: ["T1": update], now: now)
+        XCTAssertEqual(status, .delay(seconds: 120))
+    }
+
+    func testTripLevelStatusNilForUnknownTrip() {
+        let status = RealtimeScheduleMerger.status(tripId: "other", stopId: "S", stopSequence: 5,
+                                                   scheduled: now, updates: [:], now: now)
+        XCTAssertNil(status)
+    }
+
     // MARK: - Helpers
 
     private func apply(_ update: TripUpdate, to entry: ScheduleEntry) -> ScheduleEntry {

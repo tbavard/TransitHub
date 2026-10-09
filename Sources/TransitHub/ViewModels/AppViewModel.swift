@@ -168,12 +168,14 @@ final class AppViewModel: ObservableObject {
     ) async throws -> [TripItinerary] {
         let snapshotStops = stops
         let loc = userLocation
+        let liveTrips = tripUpdatesByProvider
         return try await TripPlanner.planDirect(
             from: origin,
             to: destination,
             allStops: snapshotStops,
             userLocation: loc,
-            departAt: departAt
+            departAt: departAt,
+            tripUpdates: liveTrips
         )
     }
 
