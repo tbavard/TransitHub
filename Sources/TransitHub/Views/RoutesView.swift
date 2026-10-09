@@ -7,6 +7,15 @@ struct RoutesView: View {
     @EnvironmentObject var providersStore: UserProvidersStore
     @State private var searchText = ""
     @State private var providerFilter: String? = nil  // nil = all providers
+    @AppStorage(RecentRoutes.storageKey) private var recentRaw = ""
+
+    /// Recently opened lines still loaded (a removed provider's lines drop
+    /// out silently). Hidden while searching or filtering.
+    private var recentRoutes: [Route] {
+        guard searchText.isEmpty, providerFilter == nil else { return [] }
+        let byId = Dictionary(appVM.routes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        return RecentRoutes.ids(from: recentRaw).compactMap { byId[$0] }
+    }
 
     // All route types present across loaded providers, in display order.
     private static let displayOrder: [Route.RouteType] = [.metro, .rail, .tram, .bus, .ferry, .funicular]
@@ -34,6 +43,17 @@ struct RoutesView: View {
 
     private var routesList: some View {
         List {
+            if !recentRoutes.isEmpty {
+                Section {
+                    ForEach(recentRoutes) { route in
+                        NavigationLink(value: AppDestination.route(route)) {
+                            RouteRow(route: route)
+                        }
+                    }
+                } header: {
+                    Label("Récentes", systemImage: "clock.arrow.circlepath")
+                }
+            }
             ForEach(filteredRoutesByType, id: \.label) { section in
                 Section(section.label) {
                     ForEach(section.routes) { route in
@@ -55,7 +75,7 @@ struct RoutesView: View {
     private var providerFilterStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ProviderFilterChip(label: "Tous", color: .secondary,
+                ProviderFilterChip(label: "Tous", color: Theme.brandStart,
                                    selected: providerFilter == nil) {
                     providerFilter = nil
                 }
@@ -71,6 +91,7 @@ struct RoutesView: View {
             .padding(.vertical, 8)
         }
         .background(.bar)
+        .selectionFeedback(providerFilter)
     }
 
     private func filter(_ routes: [Route]) -> [Route] {
@@ -96,14 +117,15 @@ private struct ProviderFilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(selected ? .white : color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(selected ? color : color.opacity(0.1),
+                .font(Typography.body.weight(.semibold))
+                .foregroundStyle(selected ? color.readableForeground : color)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.s)
+                .background(selected ? AnyShapeStyle(color.livelyGradient) : AnyShapeStyle(color.opacity(0.1)),
                             in: Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -113,28 +135,21 @@ struct RouteRow: View {
     let route: Route
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(route.officialRouteColor)
-                    .frame(width: 48, height: 32)
-                Text(route.shortName)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(route.routeTextColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-            }
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: Spacing.md) {
+            RoutePill(route: route)
+                .frame(width: 52)
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(route.longName)
                     .font(.body.weight(.medium))
                     .lineLimit(2)
-                Text(route.routeType.label)
-                    .font(.caption)
+                Label(route.routeType.label, systemImage: route.routeType.icon)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Spacing.xxs)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -148,6 +163,7 @@ struct RouteDetailView: View {
     @State private var directionHeadsigns: [Int: String] = [:]
     @State private var stops: [Stop] = []
     @State private var isLoading = true
+    @AppStorage(RecentRoutes.storageKey) private var recentRaw = ""
 
     private var routeAlerts: [ServiceAlert] {
         appVM.serviceAlerts.filter {
@@ -205,6 +221,7 @@ struct RouteDetailView: View {
         .background(Theme.screenBackground)
         .navigationTitle("Ligne \(route.shortName)")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { recentRaw = RecentRoutes.adding(route.id, to: recentRaw) }
         .task(id: directionId) {
             await loadStops()
         }
