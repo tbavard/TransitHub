@@ -227,3 +227,27 @@
 "Retard %lld min" = "%lld min late";
 "Avance %lld min" = "%lld min early";
 "À l'heure" = "On time";
+
+// MARK: - Accessibility
+"countdown.now_short" = "now";
+"a11y.route" = "Line %@";
+"a11y.towards" = "towards %@";
+"a11y.now" = "now";
+"a11y.in_minutes" = "in %d minutes";
+"a11y.live" = "live";
+"a11y.late" = "%d minutes late";
+"a11y.early" = "%d minutes early";
+"a11y.on_time" = "on time";
+"a11y.canceled" = "canceled";
+"a11y.departed" = "departed";
+"a11y.next" = "next departure";
+"a11y.no_more" = "no more departures today";
+"a11y.at_time" = "at %@";
+"a11y.then" = "then %@";
+"a11y.origin" = "line origin";
+"a11y.terminus" = "terminus";
+"a11y.stop" = "Stop %@";
+"Actualiser" = "Refresh";
+"Centrer sur ma position" = "Center on my location";
+"Afficher les véhicules" = "Show vehicles";
+"Masquer les véhicules" = "Hide vehicles";

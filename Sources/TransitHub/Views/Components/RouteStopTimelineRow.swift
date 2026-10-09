@@ -61,6 +61,12 @@ struct RouteStopTimelineRow: View {
             track.frame(width: Self.trackWidth)
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(A11y.join([
+            String(format: String(localized: "a11y.stop"), name),
+            position == .first ? String(localized: "a11y.origin")
+                : position == .last ? String(localized: "a11y.terminus") : nil
+        ]))
     }
 
     private func endpointLabel(_ text: LocalizedStringKey) -> some View {

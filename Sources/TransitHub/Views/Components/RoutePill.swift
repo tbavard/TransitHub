@@ -22,5 +22,6 @@ struct RoutePill: View {
             .frame(minWidth: 40)
             .background(tint.livelyGradient,
                         in: RoundedRectangle(cornerRadius: Radius.sm))
+            .accessibilityLabel(A11y.route(shortName))
     }
 }

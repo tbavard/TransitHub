@@ -99,6 +99,7 @@ struct NearbyView: View {
         VStack(spacing: 20) {
             Image(systemName: "location.slash.circle.fill")
                 .font(.system(size: 56))
+                .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.statusWarning)
             Text("Localisation désactivée")
                 .font(.headline)

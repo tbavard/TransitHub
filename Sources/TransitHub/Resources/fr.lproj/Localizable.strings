@@ -227,3 +227,27 @@
 "Retard %lld min" = "Retard %lld min";
 "Avance %lld min" = "Avance %lld min";
 "À l'heure" = "À l'heure";
+
+// MARK: - Accessibility
+"countdown.now_short" = "imminent";
+"a11y.route" = "Ligne %@";
+"a11y.towards" = "vers %@";
+"a11y.now" = "maintenant";
+"a11y.in_minutes" = "dans %d minutes";
+"a11y.live" = "en direct";
+"a11y.late" = "en retard de %d minutes";
+"a11y.early" = "en avance de %d minutes";
+"a11y.on_time" = "à l'heure";
+"a11y.canceled" = "annulé";
+"a11y.departed" = "déjà parti";
+"a11y.next" = "prochain départ";
+"a11y.no_more" = "plus de départ aujourd'hui";
+"a11y.at_time" = "à %@";
+"a11y.then" = "puis %@";
+"a11y.origin" = "départ de la ligne";
+"a11y.terminus" = "terminus";
+"a11y.stop" = "Arrêt %@";
+"Actualiser" = "Actualiser";
+"Centrer sur ma position" = "Centrer sur ma position";
+"Afficher les véhicules" = "Afficher les véhicules";
+"Masquer les véhicules" = "Masquer les véhicules";

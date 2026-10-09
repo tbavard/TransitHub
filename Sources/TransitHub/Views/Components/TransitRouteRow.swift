@@ -9,6 +9,18 @@ struct TransitRouteRow: View {
     let group: RouteDeparturesGroup
 
     var body: some View {
+        content
+            // One sentence: "Line 24, towards Est, in 4 minutes, in 12 minutes, live".
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(A11y.join([
+                A11y.route(group.routeShortName),
+                A11y.towards(group.headsign),
+                A11y.countdowns(Array(group.minutes.prefix(3))),
+                group.isLive ? String(localized: "a11y.live") : nil
+            ]))
+    }
+
+    private var content: some View {
         HStack(spacing: Spacing.md) {
             RoutePill(shortName: group.routeShortName, color: group.routeColor)
                 .frame(width: 44)

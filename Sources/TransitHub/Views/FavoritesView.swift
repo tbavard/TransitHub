@@ -116,6 +116,7 @@ struct FavoritesView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: SettingsView()) {
                         Image(systemName: "gear")
+                            .accessibilityLabel(Text("Réglages"))
                     }
                 }
             }
@@ -229,6 +230,7 @@ struct FavoritesView: View {
         HStack(spacing: Spacing.lg) {
             Image(systemName: "star.circle")
                 .font(.system(size: 36))
+                .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.favorite)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Aucun arrêt")

@@ -135,6 +135,7 @@ struct StopDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { Task { await loadSchedule() } } label: {
                     Image(systemName: "arrow.clockwise")
+                        .accessibilityLabel(Text("Actualiser"))
                 }
             }
         }
@@ -499,7 +500,29 @@ struct NextDepartureHero: View {
         }
     }
 
+    /// Whole card read as one sentence, e.g. "next departure, line 24,
+    /// towards Est, in 4 minutes, at 08:14, live, 2 minutes late, then 12 min".
+    private var accessibilitySummary: String {
+        A11y.join([
+            String(localized: isPast ? "a11y.no_more" : "a11y.next"),
+            A11y.route(entry.routeShortName),
+            A11y.towards(entry.headsign),
+            entry.isCanceled ? nil : A11y.countdown(minutes),
+            String(format: String(localized: "a11y.at_time"), entry.predictedDisplayTime),
+            A11y.liveStatus(of: entry),
+            following.isEmpty ? nil : String(format: String(localized: "a11y.then"),
+                                             A11y.countdowns(following.map { $0.minutesUntilDeparture }))
+        ])
+    }
+
     var body: some View {
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilitySummary)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         let fg = tint.readableForeground
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
@@ -629,8 +652,12 @@ struct ScheduleGrid: View {
                     Text(String(format: "%02dh", row.hour % 24))
                         .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 36, alignment: .leading)
+                        // minWidth (not width) so large Dynamic Type doesn't truncate.
+                        .frame(minWidth: 36, alignment: .leading)
+                        .fixedSize()
                         .padding(.top, 3)
+                        // Each chip already speaks its full time.
+                        .accessibilityHidden(true)
 
                     FlowLayout(spacing: 5) {
                         ForEach(row.entries) { entry in
@@ -691,6 +718,17 @@ struct MinuteChip: View {
             .shadow(color: isNext ? tint.opacity(0.35) : .clear, radius: 4, x: 0, y: 2)
             .scaleEffect(isNext ? 1.05 : 1.0)
             .animation(.spring(response: 0.3), value: isNext)
+            // "08:14, next departure" / "07:52, departed" / "09:05, canceled".
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(A11y.join([
+                entry.displayTime,
+                isNext ? String(localized: "a11y.next") : nil,
+                entry.isCanceled ? String(localized: "a11y.canceled")
+                    : entry.hasDepartedToday ? String(localized: "a11y.departed")
+                    : nil,
+                entry.delayMinutes >= 2 && !entry.isCanceled
+                    ? String(format: String(localized: "a11y.late"), entry.delayMinutes) : nil
+            ]))
     }
 }
 

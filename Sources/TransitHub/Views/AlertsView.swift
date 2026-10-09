@@ -72,6 +72,7 @@ struct AlertsView: View {
                             Task { await appVM.refreshRealtime() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
+                                .accessibilityLabel(Text("Actualiser"))
                         }
                         .disabled(!hasRealtimeAccess)
                     }
@@ -193,6 +194,7 @@ struct AlertsView: View {
         VStack(spacing: 20) {
             Image(systemName: "key.slash.fill")
                 .font(.system(size: 52))
+                .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.statusWarning)
             Text("Clé API requise")
                 .font(.headline)

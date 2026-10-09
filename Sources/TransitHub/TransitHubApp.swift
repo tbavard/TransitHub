@@ -57,6 +57,7 @@ struct LoadingView: View {
                     .shadow(color: Theme.brandStart.opacity(0.35), radius: 16, x: 0, y: 8)
                 Image(systemName: "tram.fill")
                     .font(.system(size: 40, weight: .semibold))
+                    .accessibilityHidden(true)   // decorative
                     .foregroundStyle(.white)
             }
 
@@ -88,6 +89,7 @@ struct ErrorView: View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 52))
+                .accessibilityHidden(true)   // decorative
                 .foregroundStyle(.orange)
 
             Text("Impossible de charger les données")

@@ -142,6 +142,8 @@ struct TransitMapView: View {
                             .background(.regularMaterial, in: Circle())
                             .foregroundStyle(showVehicles ? Theme.soon : .secondary)
                     }
+                    .accessibilityLabel(Text(showVehicles ? "Masquer les véhicules" : "Afficher les véhicules"))
+                    .accessibilityAddTraits(showVehicles ? .isSelected : [])
                 }
 
                 Button { centerOnUser() } label: {
@@ -151,6 +153,7 @@ struct TransitMapView: View {
                         .background(.regularMaterial, in: Circle())
                         .foregroundStyle(isFollowingUser ? Theme.brandStart : .primary)
                 }
+                .accessibilityLabel(Text("Centrer sur ma position"))
             }
             .padding()
             // Push the map controls above the preview card so they don't get
@@ -280,6 +283,8 @@ struct StopPin: View {
         .buttonStyle(.plain)
         .scaleEffect(isSelected ? 1.5 : 1.0)
         .animation(.spring(duration: 0.2), value: isSelected)
+        .accessibilityLabel(String(format: String(localized: "a11y.stop"), stop.name))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -443,5 +448,6 @@ struct VehicleArrow: View {
             .padding(4)
             .background(.white.opacity(0.95), in: Circle())
             .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+            .accessibilityHidden(true)   // moving vehicles would flood VoiceOver
     }
 }

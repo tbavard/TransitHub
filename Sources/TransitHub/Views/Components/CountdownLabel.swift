@@ -10,6 +10,14 @@ struct CountdownLabel: View {
     var emphasised: Bool = false
 
     var body: some View {
+        content
+            // Read as "in 4 minutes" rather than "4", "min".
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(A11y.countdown(minutes))
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if minutes < 60 {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
                 Text(minutes == 0 ? "•" : "\(minutes)")
@@ -20,7 +28,7 @@ struct CountdownLabel: View {
                         .font(Typography.countdownUnit(emphasised: emphasised))
                         .opacity(0.7)
                 } else {
-                    Text("now")
+                    Text("countdown.now_short")
                         .font(Typography.countdownUnit(emphasised: emphasised))
                 }
             }
@@ -29,9 +37,7 @@ struct CountdownLabel: View {
             let h = minutes / 60
             let m = minutes % 60
             Text(m == 0 ? "\(h)h" : "\(h)h\(String(format: "%02d", m))")
-                .font(.system(size: emphasised ? 16 : 13,
-                              weight: emphasised ? .bold : .semibold,
-                              design: .rounded))
+                .font(Typography.countdownLong(emphasised: emphasised))
                 .monospacedDigit()
                 .foregroundStyle(emphasised ? Theme.urgencyColor(forMinutes: minutes) : .secondary)
         }
