@@ -107,11 +107,7 @@ struct StopDetailView: View {
                         Section {
                             routeSectionBody(group: group)
                         } header: {
-                            RouteScheduleHeader(
-                                routeShortName: group.routeShortName,
-                                headsign: group.headsign,
-                                color: group.routeColor
-                            )
+                            routeHeader(for: group)
                         }
                     }
                 }
@@ -242,6 +238,33 @@ struct StopDetailView: View {
                 StopActionLabel(icon: "square.and.arrow.up", label: "Partager", tint: .accentColor)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Route header
+
+    /// Section header; tapping it opens the route — except for the route the
+    /// user just came from, where "back" already does that.
+    @ViewBuilder
+    private func routeHeader(for group: StopDepartureGroup) -> some View {
+        let header = RouteScheduleHeader(
+            routeShortName: group.routeShortName,
+            headsign: group.headsign,
+            color: group.routeColor,
+            showsDisclosure: linkedRoute(for: group) != nil
+        )
+        if let route = linkedRoute(for: group) {
+            NavigationLink(value: AppDestination.route(route)) { header }
+                .buttonStyle(.plain)
+        } else {
+            header
+        }
+    }
+
+    private func linkedRoute(for group: StopDepartureGroup) -> Route? {
+        guard group.routeId != routeContext?.route.gtfsId else { return nil }
+        return appVM.routes.first {
+            $0.gtfsId == group.routeId && $0.providerId == stop.providerId
         }
     }
 
@@ -475,6 +498,7 @@ struct RouteScheduleHeader: View {
     let routeShortName: String
     let headsign: String
     let color: String
+    var showsDisclosure = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -484,7 +508,13 @@ struct RouteScheduleHeader: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
             Spacer()
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
+        .contentShape(Rectangle())
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)

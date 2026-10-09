@@ -192,8 +192,11 @@ struct TransitMapView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: previewStop?.favoriteKey)
         .sheet(isPresented: $showFullSheet) {
             if let stop = previewStop {
-                NavigationStack { StopDetailView(stop: stop) }
-                    .presentationDetents([.medium, .large])
+                NavigationStack {
+                    StopDetailView(stop: stop)
+                        .appDestinations()
+                }
+                .presentationDetents([.medium, .large])
             }
         }
         .onChange(of: previewStop?.favoriteKey) { _, _ in

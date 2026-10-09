@@ -4,7 +4,6 @@ import CoreLocation
 struct FavoritesView: View {
     @EnvironmentObject var appVM: AppViewModel
     @EnvironmentObject var providersStore: UserProvidersStore
-    @State private var selectedStop: Stop?
     @State private var schedulesByStop: [String: [ScheduleEntry]] = [:]
     @State private var isLoadingSchedules = false
     @State private var searchText = ""
@@ -112,19 +111,13 @@ struct FavoritesView: View {
             }
             .navigationTitle("Tableau de bord")
             .searchable(text: $searchText, prompt: "Ligne, arrêt, numéro…")
-            .navigationDestination(for: Route.self) { route in
-                RouteDetailView(route: route)
-            }
+            .appDestinations()
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: SettingsView()) {
                         Image(systemName: "gear")
                     }
                 }
-            }
-            .sheet(item: $selectedStop) { stop in
-                NavigationStack { StopDetailView(stop: stop) }
-                    .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showAlerts) {
                 AlertsView()
@@ -181,13 +174,13 @@ struct FavoritesView: View {
     @ViewBuilder
     private var stopsSection: some View {
         if homeStops.isEmpty {
-            SectionHeader(title: "Mes arrêts", icon: "mappin.and.ellipse", color: .blue)
+            SectionHeader(title: "Mes arrêts", icon: "mappin.and.ellipse", color: Theme.brandStart)
             emptyStopsCard
         } else {
             SectionHeader(title: "Mes arrêts", icon: "mappin.and.ellipse", color: Theme.brandStart)
             VStack(spacing: Spacing.md) {
                 ForEach(homeStops) { stop in
-                    Button { selectedStop = stop } label: {
+                    NavigationLink(value: AppDestination.stop(stop)) {
                         TransitStopCard(
                             stop: stop,
                             schedule: schedulesByStop[stop.id] ?? [],
@@ -298,7 +291,7 @@ struct FavoritesView: View {
                 if !routes.isEmpty {
                     Section("Lignes") {
                         ForEach(routes) { route in
-                            NavigationLink(value: route) {
+                            NavigationLink(value: AppDestination.route(route)) {
                                 RouteRow(route: route)
                             }
                         }
@@ -307,7 +300,7 @@ struct FavoritesView: View {
                 if !stops.isEmpty {
                     Section("Arrêts") {
                         ForEach(stops) { stop in
-                            Button { selectedStop = stop } label: {
+                            NavigationLink(value: AppDestination.stop(stop)) {
                                 StopResultRow(stop: stop)
                             }
                         }

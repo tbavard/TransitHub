@@ -35,9 +35,7 @@ struct RoutesView: View {
                     }
                 }
             }
-            .navigationDestination(for: Route.self) { route in
-                RouteDetailView(route: route)
-            }
+            .appDestinations()
         }
     }
 
@@ -46,7 +44,7 @@ struct RoutesView: View {
             ForEach(filteredRoutesByType, id: \.label) { section in
                 Section(section.label) {
                     ForEach(section.routes) { route in
-                        NavigationLink(value: route) {
+                        NavigationLink(value: AppDestination.route(route)) {
                             RouteRow(route: route)
                         }
                     }
@@ -157,7 +155,6 @@ struct RouteDetailView: View {
     @State private var directionHeadsigns: [Int: String] = [:]
     @State private var stops: [Stop] = []
     @State private var isLoading = true
-    @State private var selectedStop: Stop?
 
     private var routeAlerts: [ServiceAlert] {
         appVM.serviceAlerts.filter {
@@ -239,18 +236,15 @@ struct RouteDetailView: View {
 
                     Section("Arrêts") {
                         ForEach(stops) { stop in
-                            Button {
-                                selectedStop = stop
-                            } label: {
+                            NavigationLink(value: AppDestination.stop(
+                                stop,
+                                context: StopRouteContext(route: route, directionId: directionId)
+                            )) {
                                 HStack {
                                     Image(systemName: "mappin.circle.fill")
                                         .foregroundStyle(route.routeColor)
                                     Text(stop.name)
                                         .foregroundStyle(.primary)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
                                 }
                             }
                         }
@@ -261,14 +255,6 @@ struct RouteDetailView: View {
         }
         .navigationTitle("Ligne \(route.shortName)")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $selectedStop) { stop in
-            NavigationStack {
-                StopDetailView(
-                    stop: stop,
-                    routeContext: StopRouteContext(route: route, directionId: directionId)
-                )
-            }
-        }
         .task(id: directionId) {
             await loadStops()
         }

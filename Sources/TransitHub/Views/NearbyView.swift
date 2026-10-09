@@ -5,7 +5,6 @@ struct NearbyView: View {
     @EnvironmentObject var appVM: AppViewModel
     @EnvironmentObject var providersStore: UserProvidersStore
     @ObservedObject var locationService: LocationService
-    @State private var selectedStop: Stop?
     @State private var schedulesByStop: [String: [ScheduleEntry]] = [:]
     @State private var isLoadingSchedules = false
 
@@ -40,12 +39,7 @@ struct NearbyView: View {
                     }
                 }
             }
-            .sheet(item: $selectedStop) { stop in
-                NavigationStack {
-                    StopDetailView(stop: stop)
-                }
-                .presentationDetents([.medium, .large])
-            }
+            .appDestinations()
         }
         .task(id: stopsKey) {
             await loadSchedules()
@@ -61,7 +55,7 @@ struct NearbyView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(nearestStops) { stop in
-                    Button { selectedStop = stop } label: {
+                    NavigationLink(value: AppDestination.stop(stop)) {
                         TransitStopCard(
                             stop: stop,
                             schedule: schedulesByStop[stop.id] ?? [],
