@@ -19,7 +19,7 @@ struct Route: Identifiable, Hashable {
 
     var routeType: RouteType { RouteType(rawValue: type) ?? .bus }
 
-    var routeColor: Color { Color(hex: color) ?? .blue }
+    var routeColor: Color { Color(hex: color) ?? Theme.brandStart }
     var routeTextColor: Color { Color(hex: textColor) ?? .white }
 
     // Official STM metro line colors (overrides GTFS feed color for metro lines)

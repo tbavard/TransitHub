@@ -83,7 +83,7 @@ struct TransitStopCard: View {
                     if isFavorite {
                         Image(systemName: "star.fill")
                             .font(Typography.caption)
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(Theme.favorite)
                     }
                     Text(stop.name)
                         .font(Typography.cardTitle)

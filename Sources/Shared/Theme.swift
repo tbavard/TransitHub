@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Theme
 //
 // Central palette + gradient recipes for the "colorful & lively" direction.
+// Lives in Sources/Shared so the widget extension uses the same palette.
 // Views should reference `Theme.*` rather than hard-coding `.blue`, `.orange`,
 // raw hex, or ad-hoc gradients, so the whole app moves together.
 
@@ -63,6 +64,9 @@ enum Theme {
     static let statusOK       = Color(hex: "30D158") ?? .green
     static let statusWarning  = Color(hex: "FF9F0A") ?? .orange
     static let statusCritical = Color(hex: "FF453A") ?? .red
+
+    /// Minor delay / caution (yellow).
+    static let caution        = Color(hex: "FFD60A") ?? .yellow
 
     /// Favorite star.
     static let favorite       = Color(hex: "FFD60A") ?? .yellow

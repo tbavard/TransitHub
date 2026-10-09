@@ -76,7 +76,7 @@ struct SmallWidget: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: "tram.circle.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Theme.brandStart)
                     .font(.caption)
                 Text(snapshot.stopName)
                     .font(.caption.weight(.semibold))
@@ -95,7 +95,7 @@ struct SmallWidget: View {
 
                     Text(minuteLabel(entry.minutesFromNow))
                         .font(.caption)
-                        .foregroundStyle(entry.minutesFromNow <= 2 ? .orange : .primary)
+                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soon : .primary)
                     Spacer()
                 }
             }
@@ -120,7 +120,7 @@ struct MediumWidget: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: "tram.circle.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Theme.brandStart)
                 Text(snapshot.stopName)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -150,7 +150,7 @@ struct MediumWidget: View {
 
                     Text(minuteLabel(entry.minutesFromNow))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(entry.minutesFromNow <= 2 ? .orange : .primary)
+                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soon : .primary)
                 }
             }
         }
@@ -275,7 +275,7 @@ struct LockScreenLiveActivityView: View {
     let context: ActivityViewContext<DepartureAttributes>
 
     var routeColor: Color {
-        Color(hex: context.attributes.routeColor) ?? .blue
+        Color(hex: context.attributes.routeColor) ?? Theme.brandStart
     }
 
     var body: some View {
@@ -307,11 +307,11 @@ struct LockScreenLiveActivityView: View {
                 if context.state.minutesUntilDeparture <= 0 {
                     Text("Maintenant")
                         .font(.subheadline.bold())
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.statusWarning)
                 } else {
                     Text("\(context.state.minutesUntilDeparture)")
                         .font(.title2.bold())
-                        .foregroundStyle(context.state.isDelayed ? .red : .primary)
+                        .foregroundStyle(context.state.isDelayed ? Theme.statusCritical : .primary)
                     Text("min").font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -330,7 +330,7 @@ struct RouteTag: View {
             .font(.caption2.bold())
             .foregroundStyle(.white)
             .padding(.horizontal, 5).padding(.vertical, 2)
-            .background(Color(hex: colorHex) ?? .blue, in: RoundedRectangle(cornerRadius: 4))
+            .background(Color(hex: colorHex) ?? Theme.brandStart, in: RoundedRectangle(cornerRadius: 4))
     }
 }
 
@@ -342,11 +342,11 @@ struct MinutesBadge: View {
         if minutes <= 0 {
             Text("!")
                 .font(.caption.bold())
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
         } else {
             Text("\(minutes)'")
                 .font(.caption.bold())
-                .foregroundStyle(isDelayed ? .red : .primary)
+                .foregroundStyle(isDelayed ? Theme.statusCritical : .primary)
         }
     }
 }

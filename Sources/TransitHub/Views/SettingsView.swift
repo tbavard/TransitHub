@@ -94,7 +94,7 @@ struct SettingsView: View {
             if provider.needsRealtimeKey
                 && GTFSRealtimeService.forProvider(provider).apiKey.isEmpty {
                 Image(systemName: "key.slash")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.statusWarning)
                     .font(.caption)
             }
         }
@@ -331,7 +331,7 @@ struct ProviderDetailView: View {
                         onChange()
                     }
                 }
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
                 Button("Effacer et réimporter", role: .destructive) {
                     showClearConfirm = true
                 }
@@ -444,7 +444,7 @@ struct APIKeyStatusBadge: View {
             case .idle:
                 if keySaved {
                     Label("Clé enregistrée", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Theme.statusOK)
                 }
             case .testing:
                 Label("Test en cours…", systemImage: "clock")
@@ -456,11 +456,11 @@ struct APIKeyStatusBadge: View {
                         : "Connexion réussie — \(count) véhicules actifs",
                     systemImage: "checkmark.circle.fill"
                 )
-                .foregroundStyle(.green)
+                .foregroundStyle(Theme.statusOK)
             case .failure(let msg):
                 VStack(alignment: .leading, spacing: 2) {
                     Label("Connexion échouée", systemImage: "xmark.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.statusCritical)
                     Text(msg)
                         .font(.caption2)
                         .foregroundStyle(.secondary)

@@ -73,13 +73,13 @@ struct FavoritesView: View {
         let total    = appVM.serviceAlerts.count + appVM.routeDelays.count
         if critical > 0 {
             return ("xmark.circle.fill",
-                    String(format: String(localized: "network.disruptions"), critical), .red)
+                    String(format: String(localized: "network.disruptions"), critical), Theme.statusCritical)
         }
         if total > 0 {
             return ("exclamationmark.triangle.fill",
-                    String(format: String(localized: "network.alerts"), total), .orange)
+                    String(format: String(localized: "network.alerts"), total), Theme.statusWarning)
         }
-        return ("checkmark.circle.fill", String(localized: "network.normal"), .green)
+        return ("checkmark.circle.fill", String(localized: "network.normal"), Theme.statusOK)
     }
 
     // MARK: - Body
@@ -229,7 +229,7 @@ struct FavoritesView: View {
         HStack(spacing: Spacing.lg) {
             Image(systemName: "star.circle")
                 .font(.system(size: 36))
-                .foregroundStyle(.yellow)
+                .foregroundStyle(Theme.favorite)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Aucun arrêt")
                     .font(.body.weight(.semibold))
@@ -247,7 +247,7 @@ struct FavoritesView: View {
 
     private var alertsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Avis actifs", icon: "exclamationmark.triangle.fill", color: .orange)
+            SectionHeader(title: "Avis actifs", icon: "exclamationmark.triangle.fill", color: Theme.statusWarning)
 
             VStack(spacing: 6) {
                 ForEach(appVM.serviceAlerts.prefix(3)) { alert in
@@ -322,7 +322,7 @@ private struct StopResultRow: View {
         HStack(spacing: 12) {
             Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
                 .frame(width: 20)
-                .foregroundStyle(stop.isStation ? .blue : .secondary)
+                .foregroundStyle(stop.isStation ? Theme.brandStart : .secondary)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(stop.name)
@@ -349,7 +349,7 @@ private struct StopResultRow: View {
             Spacer()
 
             if appVM.isFavorite(stop) {
-                Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow)
+                Image(systemName: "star.fill").font(.caption).foregroundStyle(Theme.favorite)
             }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }

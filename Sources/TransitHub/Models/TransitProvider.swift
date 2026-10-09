@@ -28,7 +28,7 @@ struct TransitProvider: Identifiable, Equatable, Codable, Hashable {
     var rtAuthType: Int = 0
     var rtApiKeyParamName: String?
 
-    var brandColor: Color { Color(hex: brandColorHex) ?? .blue }
+    var brandColor: Color { Color(hex: brandColorHex) ?? Theme.brandStart }
 
     var needsRealtimeKey: Bool { supportsRealtime && rtAuthType != 0 }
 }

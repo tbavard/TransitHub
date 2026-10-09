@@ -69,13 +69,8 @@ struct ServiceAlert: Identifiable {
 
     var typeLabel: String { type.isEmpty ? "Avis" : type }
 
-    var severityColor: Color {
-        switch severityLevel {
-        case 3: return .red
-        case 2: return .orange
-        default: return .blue
-        }
-    }
+    /// Same palette as the rest of the app (Theme), not the stock system hues.
+    var severityColor: Color { Theme.severityColor(level: severityLevel) }
 }
 
 // MARK: - Route Delay (derived from TripUpdates — used in Alerts tab)
@@ -110,11 +105,8 @@ struct RouteDelay: Identifiable {
         return m == 1 ? "+1 min de retard" : "+\(m) min de retard"
     }
 
+    /// Minor delays use the caution hue; warning/critical match alerts.
     var severityColor: Color {
-        switch severityLevel {
-        case 3: return .red
-        case 2: return .orange
-        default: return .yellow
-        }
+        severityLevel == 1 ? Theme.caution : Theme.severityColor(level: severityLevel)
     }
 }

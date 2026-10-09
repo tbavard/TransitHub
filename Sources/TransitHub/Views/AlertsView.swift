@@ -91,7 +91,7 @@ struct AlertsView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+                    .background(Theme.statusCritical.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
                     .padding(.horizontal)
                     .padding(.bottom, 4)
                 }
@@ -110,15 +110,15 @@ struct AlertsView: View {
             if criticalCount > 0 {
                 return ("xmark.circle.fill",
                         String(format: String(localized: "alerts.critical_count"), criticalCount),
-                        .red)
+                        Theme.statusCritical)
             } else if alertCount > 0 || delayCount > 0 {
                 let parts = [
                     alertCount > 0 ? String(format: String(localized: "alerts.alert_count"), alertCount) : nil,
                     delayCount > 0 ? String(format: String(localized: "alerts.delay_count"), delayCount) : nil
                 ].compactMap { $0 }.joined(separator: " · ")
-                return ("exclamationmark.triangle.fill", parts, .orange)
+                return ("exclamationmark.triangle.fill", parts, Theme.statusWarning)
             } else {
-                return ("checkmark.circle.fill", String(localized: "network.normal"), .green)
+                return ("checkmark.circle.fill", String(localized: "network.normal"), Theme.statusOK)
             }
         }()
 
@@ -193,7 +193,7 @@ struct AlertsView: View {
         VStack(spacing: 20) {
             Image(systemName: "key.slash.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
             Text("Clé API requise")
                 .font(.headline)
             Text("Accédez aux avis et retards en temps réel en enregistrant votre clé dans les réglages.")
@@ -344,7 +344,7 @@ struct DelayRow: View {
 
 struct FilterChip: View {
     let label: String
-    var color: Color = .blue
+    var color: Color = Theme.brandStart
     let isSelected: Bool
     let action: () -> Void
 

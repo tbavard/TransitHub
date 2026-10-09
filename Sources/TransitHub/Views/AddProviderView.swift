@@ -135,22 +135,22 @@ struct AddProviderView: View {
                         Text("Officiel")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.green.opacity(0.15), in: Capsule())
-                            .foregroundStyle(.green)
+                            .background(Theme.statusOK.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Theme.statusOK)
                     }
                     if let status = r.status, status != "active" {
                         Text(status.capitalized)
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.15), in: Capsule())
-                            .foregroundStyle(.orange)
+                            .background(Theme.statusWarning.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Theme.statusWarning)
                     }
                 }
             }
             Spacer()
             if alreadyAdded {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.statusOK)
             } else {
                 Image(systemName: "plus.circle")
                     .foregroundStyle(Theme.brandStart)

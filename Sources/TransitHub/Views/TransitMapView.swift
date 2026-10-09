@@ -105,7 +105,7 @@ struct TransitMapView: View {
                             || previewRouteIds.contains(vehicle.routeId)
                         VehicleArrow(
                             bearing: vehicle.bearing,
-                            color: routeColorIndex[vehicle.routeId] ?? .orange
+                            color: routeColorIndex[vehicle.routeId] ?? Theme.soon
                         )
                         .opacity(isHighlighted ? 1.0 : 0.3)
                     }
@@ -140,7 +140,7 @@ struct TransitMapView: View {
                             .font(.title3)
                             .padding(12)
                             .background(.regularMaterial, in: Circle())
-                            .foregroundStyle(showVehicles ? .orange : .secondary)
+                            .foregroundStyle(showVehicles ? Theme.soon : .secondary)
                     }
                 }
 
@@ -149,7 +149,7 @@ struct TransitMapView: View {
                         .font(.title3)
                         .padding(12)
                         .background(.regularMaterial, in: Circle())
-                        .foregroundStyle(isFollowingUser ? .blue : .primary)
+                        .foregroundStyle(isFollowingUser ? Theme.brandStart : .primary)
                 }
             }
             .padding()
@@ -264,7 +264,7 @@ struct StopPin: View {
             if stop.isStation {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5)
-                        .fill(isSelected ? Color.orange : Color.blue)
+                        .fill(isSelected ? Theme.soon : Theme.brandStart)
                         .frame(width: 22, height: 22)
                     Image(systemName: "m.circle")
                         .font(.system(size: 12, weight: .bold))
@@ -272,7 +272,7 @@ struct StopPin: View {
                 }
             } else {
                 Circle()
-                    .fill(isSelected ? Color.orange : Color.blue.opacity(0.8))
+                    .fill(isSelected ? Theme.soon : Theme.brandStart.opacity(0.8))
                     .frame(width: 11, height: 11)
                     .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
             }
@@ -363,7 +363,7 @@ struct MapStopPreviewCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
-                .background(Color.accentColor, in: Capsule())
+                .background(Theme.brandGradient, in: Capsule())
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -410,7 +410,7 @@ struct MapStopPreviewCard: View {
             Button(action: onFavoriteToggle) {
                 Image(systemName: isFavorite ? "star.fill" : "star")
                     .font(.title3)
-                    .foregroundStyle(isFavorite ? .yellow : .secondary)
+                    .foregroundStyle(isFavorite ? Theme.favorite : .secondary)
                     .padding(6)
             }
             .buttonStyle(.plain)

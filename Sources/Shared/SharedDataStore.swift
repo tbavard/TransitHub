@@ -16,7 +16,7 @@ struct DepartureSnapshot: Codable, Identifiable {
         let headsign: String
         let routeColor: String   // RRGGBB hex
 
-        var color: Color { Color(hex: routeColor) ?? .blue }
+        var color: Color { Color(hex: routeColor) ?? Theme.brandStart }
     }
 }
 

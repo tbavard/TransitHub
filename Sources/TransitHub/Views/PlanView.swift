@@ -64,12 +64,12 @@ struct PlanView: View {
     private var endpointsCard: some View {
         ZStack(alignment: .trailing) {
             VStack(spacing: 0) {
-                endpointRow(label: "De", icon: "circle.fill", iconColor: .blue,
+                endpointRow(label: "De", icon: "circle.fill", iconColor: Theme.brandStart,
                             endpoint: origin) {
                     pickerRole = .origin
                 }
                 Divider().padding(.leading, 48)
-                endpointRow(label: "À", icon: "mappin.circle.fill", iconColor: .red,
+                endpointRow(label: "À", icon: "mappin.circle.fill", iconColor: Theme.statusCritical,
                             endpoint: destination) {
                     pickerRole = .destination
                 }
@@ -176,7 +176,7 @@ struct PlanView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(isReadyToPlan ? Color.accentColor : Color(.systemGray3),
+            .background(isReadyToPlan ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Color(.systemGray3)),
                         in: Capsule())
             .foregroundStyle(.white)
         }
@@ -209,18 +209,18 @@ struct PlanView: View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
         }
         .padding(14)
-        .background(Color.orange.opacity(0.08),
+        .background(Theme.statusWarning.opacity(0.08),
                     in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Theme.statusWarning.opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -290,7 +290,7 @@ struct ItineraryCard: View {
                     in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(isTracked ? Color.accentColor.opacity(0.5)
+                .strokeBorder(isTracked ? Theme.brandStart.opacity(0.5)
                                         : Color(.separator).opacity(0.25),
                               lineWidth: isTracked ? 1.5 : 0.5)
         )
@@ -312,7 +312,7 @@ struct ItineraryCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(isTracked ? Color(.systemFill) : Color.accentColor,
+            .background(isTracked ? AnyShapeStyle(Color(.systemFill)) : AnyShapeStyle(Theme.brandGradient),
                         in: Capsule())
             .foregroundStyle(isTracked ? Color.primary : .white)
         }
