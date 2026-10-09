@@ -209,19 +209,58 @@ struct TransitMapView: View {
             Task { await loadPreviewSchedule() }
         }
         .onChange(of: locationService.location) { _, loc in
-            guard let loc, isFollowingUser else { return }
-            withAnimation { position = .region(MKCoordinateRegion(
-                center: loc.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
-            ))}
+            guard let loc else { return }
+            if isFollowingUser || initialCentering != .user {
+                if initialCentering != .user { initialCentering = .user }
+                withAnimation { position = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+                ))}
+            }
         }
         .onAppear {
-            if let loc = locationService.location { centerToLocation(loc) }
+            centerInitiallyIfNeeded()
             if routeColorIndex.isEmpty { rebuildRouteColorIndex() }
+        }
+        .onChange(of: appVM.stops.count) { _, _ in
+            centerInitiallyIfNeeded()
         }
         .onChange(of: appVM.routes) { _, _ in
             rebuildRouteColorIndex()
         }
+    }
+
+    // MARK: - Initial centering
+    //
+    // The camera used to start on a hard-coded Montreal region whatever the
+    // user's network. Now: the user's position when known; otherwise the
+    // middle of the loaded network; the first location fix then takes over.
+
+    private enum InitialCentering { case none, network, user }
+    @State private var initialCentering: InitialCentering = .none
+
+    private func centerInitiallyIfNeeded() {
+        if let loc = locationService.location {
+            guard initialCentering != .user else { return }
+            initialCentering = .user
+            centerToLocation(loc)
+        } else if initialCentering == .none, let center = networkCenter() {
+            initialCentering = .network
+            position = .region(MKCoordinateRegion(
+                center: center,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            ))
+        }
+    }
+
+    /// Median stop coordinate — robust to a few outlying stops (airport
+    /// shuttles, regional lines) that would drag a plain average away.
+    private func networkCenter() -> CLLocationCoordinate2D? {
+        let stops = appVM.stops
+        guard !stops.isEmpty else { return nil }
+        let lats = stops.map(\.lat).sorted()
+        let lons = stops.map(\.lon).sorted()
+        return CLLocationCoordinate2D(latitude: lats[lats.count / 2], longitude: lons[lons.count / 2])
     }
 
     // MARK: - Actions
@@ -389,40 +428,42 @@ struct MapStopPreviewCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Spacing.m) {
+            // Same identity bubble as the stop screen header.
             Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: Radius.md))
+                .shadow(color: Theme.brandStart.opacity(0.3), radius: 4, x: 0, y: 2)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(stop.name)
-                    .font(.headline)
+                    .font(Typography.cardTitle)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.s) {
                     ProviderBadge(providerId: stop.providerId)
                     if let info = walkingInfo {
-                        HStack(spacing: 3) {
-                            Image(systemName: "figure.walk")
-                                .font(.caption2.weight(.semibold))
-                            Text(info)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
+                        Label(info, systemImage: "figure.walk")
+                            .font(Typography.caption.weight(.semibold))
+                            .foregroundStyle(Theme.brandStart)
                     }
                 }
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: Spacing.xs)
 
             Button(action: onFavoriteToggle) {
                 Image(systemName: isFavorite ? "star.fill" : "star")
                     .font(.title3)
                     .foregroundStyle(isFavorite ? Theme.favorite : .secondary)
-                    .padding(6)
+                    .symbolEffect(.bounce, value: isFavorite)
+                    .padding(Spacing.s)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"))
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
@@ -430,6 +471,7 @@ struct MapStopPreviewCard: View {
                     .foregroundStyle(Color(.systemGray3))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("Fermer"))
         }
     }
 }
