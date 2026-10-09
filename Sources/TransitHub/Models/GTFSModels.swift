@@ -155,44 +155,34 @@ struct ScheduleEntry: Identifiable {
         return h >= 24
     }
 
-    /// True when the departure has already passed for today's service window.
-    /// Handles GTFS overnight times (HH ≥ 24) which belong to the next calendar day.
-    var hasDepartedToday: Bool {
+    /// Minutes since today's midnight. GTFS times ≥ 24:00 (today's service
+    /// running past midnight) land after 1440, i.e. tonight. Yesterday's
+    /// overnight trips are already shifted onto today's clock by
+    /// `GTFSDatabase.fetchSchedule`, so no early-morning special case is needed.
+    private var departureMinutes: Int? {
         let parts = departureTime.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return true }
-        let cal = Calendar.current
-        let now = Date()
-        let curMins = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
-        let rawHour = parts[0]
-        if rawHour >= 24 {
-            // Overnight GTFS time: the trip runs past midnight into the next day.
-            // Consider it departed only if the clock already passed the equivalent time
-            // (i.e. we're in the early hours after midnight, past that clock time).
-            let depMins = (rawHour - 24) * 60 + parts[1]
-            return curMins < 12 * 60 && depMins < curMins
-        }
-        // Normal same-day departure: simply compare clock times.
-        return rawHour * 60 + parts[1] < curMins
+        guard parts.count >= 2 else { return nil }
+        return parts[0] * 60 + parts[1]
     }
 
-    /// Minutes until this departure from now.
-    /// Returns a large value for already-departed entries so callers can still sort them last.
-    var minutesUntilDeparture: Int {
-        let parts = departureTime.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return Int.max }
+    private static func currentMinutes() -> Int {
         let cal = Calendar.current
         let now = Date()
-        let curMins = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
-        let rawHour = parts[0]
-        if rawHour >= 24 {
-            // Overnight: actual clock time is (rawHour-24):mm
-            let depMins = (rawHour - 24) * 60 + parts[1]
-            if curMins <= depMins { return depMins - curMins }       // still ahead (after midnight)
-            return 1440 - curMins + depMins                          // evening → tomorrow
-        }
-        let depMins = rawHour * 60 + parts[1]
-        if depMins >= curMins { return depMins - curMins }           // future today
-        return 1440 - curMins + depMins                              // past → treat as tomorrow
+        return cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
+    }
+
+    /// True when the departure has already passed today.
+    var hasDepartedToday: Bool {
+        guard let dep = departureMinutes else { return true }
+        return dep < Self.currentMinutes()
+    }
+
+    /// Minutes until this departure from now. Already-departed entries are
+    /// treated as tomorrow's so callers can still sort them last.
+    var minutesUntilDeparture: Int {
+        guard let dep = departureMinutes else { return Int.max }
+        let cur = Self.currentMinutes()
+        return dep >= cur ? dep - cur : 1440 - cur + dep
     }
 }
 
@@ -317,6 +307,44 @@ extension Array where Element == ScheduleEntry {
             return $0.headsign < $1.headsign
         }
     }
+}
+
+// MARK: - GTFS time helpers
+
+enum GTFSTime {
+    /// Zero-pads a GTFS time ("8:05:00" → "08:05:00"). The spec allows a
+    /// single-digit hour, but the app sorts and compares times as strings, so
+    /// they must be normalized at import. Unparseable input is returned as is.
+    static func normalized(_ raw: String) -> String {
+        // Fast path for the common, already-padded case: this runs once per
+        // stop_times row (millions on large feeds).
+        let bytes = Array(raw.utf8)
+        if bytes.count == 8,
+           (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(bytes[0]),
+           bytes[2] == UInt8(ascii: ":"), bytes[5] == UInt8(ascii: ":") {
+            return raw
+        }
+        let parts = raw.trimmingCharacters(in: .whitespaces).split(separator: ":")
+        guard (2...3).contains(parts.count),
+              let h = Int(parts[0]), let m = Int(parts[1]) else { return raw }
+        let s = parts.count == 3 ? (Int(parts[2]) ?? 0) : 0
+        return String(format: "%02d:%02d:%02d", h, m, s)
+    }
+
+    /// Moves an after-midnight time of the previous service day onto today's
+    /// clock ("25:10:00" → "01:10:00"). nil for times before 24:00.
+    static func shiftedFromPreviousDay(_ time: String) -> String? {
+        let parts = time.split(separator: ":").compactMap { Int($0) }
+        guard parts.count >= 2, parts[0] >= 24 else { return nil }
+        return String(format: "%02d:%02d:%02d", parts[0] - 24, parts[1], parts.count > 2 ? parts[2] : 0)
+    }
+}
+
+/// Service IDs relevant right now: today's, plus yesterday's — whose
+/// after-midnight trips (GTFS times ≥ 24:00) still run this morning.
+struct ActiveServices {
+    let today: [String]
+    let yesterday: [String]
 }
 
 // MARK: - Service Calendar

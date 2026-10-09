@@ -109,6 +109,11 @@ final class GTFSService {
             guard let ts = try db.getMetadata("imported_at"),
                   let epoch = Double(ts) else { return false }
 
+            // Databases built by an older importer must be rebuilt.
+            guard try db.getMetadata("data_version") == "\(GTFSDatabase.dataVersion)" else {
+                return false
+            }
+
             if let endStr = try db.getMetadata("feed_end_date"),
                let endDate = Self.parseGtfsDate(endStr) {
                 // Refresh 1 day before the feed actually expires.
@@ -209,6 +214,7 @@ final class GTFSService {
         // Mark completion — also persist the feed's coverage end date so
         // isDatabaseFresh() can expire based on actual data, not a fixed interval.
         try db.setMetadata("imported_at", "\(Date().timeIntervalSince1970)")
+        try db.setMetadata("data_version", "\(GTFSDatabase.dataVersion)")
         if let endDate = try? db.fetchFeedEndDate() {
             try db.setMetadata("feed_end_date", endDate)
         }
@@ -304,12 +310,12 @@ final class GTFSService {
             guard !line.isEmpty else { continue }
             let v = splitCSV(line)
             guard !v.isEmpty else { continue }
-            let departure = field(v, csv.index, "departure_time")
+            let departure = GTFSTime.normalized(field(v, csv.index, "departure_time"))
             guard !departure.isEmpty else { continue }   // skip timepoint=0 interpolated rows
             db.insertStopTime(
                 tripId:    field(v, csv.index, "trip_id"),
                 stopId:    field(v, csv.index, "stop_id"),
-                arrival:   field(v, csv.index, "arrival_time"),
+                arrival:   GTFSTime.normalized(field(v, csv.index, "arrival_time")),
                 departure: departure,
                 seq:       Int(field(v, csv.index, "stop_sequence")) ?? 0
             )

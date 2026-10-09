@@ -39,6 +39,11 @@ final class GTFSDatabase {
         GTFSDatabase(providerId: id)
     }
 
+    /// Bump when the import format changes in a way that requires existing
+    /// databases to be rebuilt (checked by `GTFSService.isDatabaseFresh`).
+    /// v2: stop_times times normalized to zero-padded "HH:MM:SS".
+    static let dataVersion = 2
+
     // MARK: State
 
     let providerId: String
@@ -200,23 +205,37 @@ final class GTFSDatabase {
     }
 
     func fetchStopsForRoute(_ routeId: String, direction: Int) throws -> [Stop] {
-        var result: [Stop] = []
-        let pid = providerId
-        // Use MIN(stop_sequence) to get a stable ordering across trips for the same route/direction
-        let sql = """
-            SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
-                   COALESCE(s.location_type,0), COALESCE(s.parent_station,''),
-                   MIN(st.stop_sequence) AS min_seq
-            FROM stops s
-            JOIN stop_times st ON s.stop_id  = st.stop_id
-            JOIN trips       t  ON st.trip_id = t.trip_id
+        // 1. Ordered stop list of every trip, deduplicated into distinct
+        //    patterns (variants: branches, short turns…). Sorting by
+        //    MIN(stop_sequence) across trips scrambled the order as soon as
+        //    variants numbered their stops differently.
+        var stopsByTrip: [String: [String]] = [:]
+        try query("""
+            SELECT st.trip_id, st.stop_id
+            FROM stop_times st
+            JOIN trips t ON st.trip_id = t.trip_id
             WHERE t.route_id = ? AND t.direction_id = ?
-            GROUP BY s.stop_id
-            ORDER BY min_seq
-        """
-        try query(sql, [routeId, direction]) { stmt in
+            ORDER BY st.trip_id, st.stop_sequence
+        """, [routeId, direction]) { stmt in
+            stopsByTrip[col(stmt, 0), default: []].append(col(stmt, 1))
+        }
+        let order = Self.mergedStopOrder(Array(Set(stopsByTrip.values)))
+
+        // 2. Stop details, then laid out in the merged order.
+        var byId: [String: Stop] = [:]
+        let pid = providerId
+        try query("""
+            SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
+                   COALESCE(s.location_type,0), COALESCE(s.parent_station,'')
+            FROM stops s
+            WHERE s.stop_id IN (
+                SELECT st.stop_id FROM stop_times st
+                JOIN trips t ON st.trip_id = t.trip_id
+                WHERE t.route_id = ? AND t.direction_id = ?
+            )
+        """, [routeId, direction]) { stmt in
             let ps = col(stmt, 5)
-            result.append(Stop(
+            let stop = Stop(
                 id:            col(stmt, 0),
                 name:          col(stmt, 1),
                 lat:           sqlite3_column_double(stmt, 2),
@@ -224,9 +243,44 @@ final class GTFSDatabase {
                 locationType:  Int(sqlite3_column_int(stmt, 4)),
                 parentStation: ps.isEmpty ? nil : ps,
                 providerId:    pid
-            ))
+            )
+            byId[stop.id] = stop
         }
-        return result
+        return order.compactMap { byId[$0] }
+    }
+
+    /// Merges the stop patterns of a route's variants into one display order.
+    /// The longest pattern is the backbone; stops from other variants are
+    /// inserted next to the backbone stop they follow (or, for a branch that
+    /// starts elsewhere, just before the first stop it shares).
+    static func mergedStopOrder(_ patterns: [[String]]) -> [String] {
+        var order: [String] = []
+        let longestFirst = patterns.sorted {
+            $0.count != $1.count ? $0.count > $1.count : $0.lexicographicallyPrecedes($1)
+        }
+        for pattern in longestFirst {
+            var cursor: Int? = nil       // insertion point after the last placed stop
+            var leading: [String] = []   // new stops seen before any known stop
+            for stop in pattern {
+                if let i = order.firstIndex(of: stop) {
+                    if leading.isEmpty {
+                        cursor = i + 1
+                    } else {
+                        order.insert(contentsOf: leading, at: i)
+                        cursor = i + leading.count + 1
+                        leading = []
+                    }
+                } else if let c = cursor {
+                    order.insert(stop, at: c)
+                    cursor = c + 1
+                } else if !leading.contains(stop) {
+                    leading.append(stop)
+                }
+            }
+            // Pattern shares no stop with what's already placed.
+            order.append(contentsOf: leading)
+        }
+        return order
     }
 
     func fetchScheduledDepartures(for tripIds: [String]) throws -> [String: [Int: String]] {
@@ -251,9 +305,24 @@ final class GTFSDatabase {
         return result
     }
 
-    func fetchSchedule(stopId: String, serviceIds: [String]) throws -> [ScheduleEntry] {
+    /// Departures at a stop for the current service window: today's services,
+    /// plus yesterday's after-midnight trips (GTFS times ≥ 24:00) re-expressed
+    /// on today's clock ("25:10:00" → "01:10:00"). Sorted by departure time.
+    func fetchSchedule(stopId: String, services: ActiveServices) throws -> [ScheduleEntry] {
+        let today = try fetchDepartures(stopId: stopId, serviceIds: services.today,
+                                        fromPreviousServiceDay: false)
+        let overnight = try fetchDepartures(stopId: stopId, serviceIds: services.yesterday,
+                                            fromPreviousServiceDay: true)
+        return (overnight + today).sorted { $0.departureTime < $1.departureTime }
+    }
+
+    private func fetchDepartures(stopId: String, serviceIds: [String],
+                                 fromPreviousServiceDay: Bool) throws -> [ScheduleEntry] {
         guard !serviceIds.isEmpty else { return [] }
         let ph = serviceIds.map { _ in "?" }.joined(separator: ",")
+        // The EXISTS clause drops the trip's last stop: at a terminus the
+        // vehicle only arrives, nobody can board. It's a primary-key lookup
+        // on (trip_id, stop_sequence), so it stays cheap.
         let sql = """
             SELECT st.departure_time, st.trip_id, t.trip_headsign,
                    t.route_id, r.route_short_name, COALESCE(r.route_color,''),
@@ -262,14 +331,21 @@ final class GTFSDatabase {
             JOIN trips  t ON st.trip_id  = t.trip_id
             JOIN routes r ON t.route_id  = r.route_id
             WHERE st.stop_id = ? AND t.service_id IN (\(ph))
+              AND st.departure_time >= ?
+              AND EXISTS (SELECT 1 FROM stop_times nx
+                          WHERE nx.trip_id = st.trip_id
+                            AND nx.stop_sequence > st.stop_sequence)
             ORDER BY st.departure_time
         """
         var params: [Any] = [stopId]
         params.append(contentsOf: serviceIds)
+        params.append(fromPreviousServiceDay ? "24:00:00" : "")
         var result: [ScheduleEntry] = []
         try query(sql, params) { stmt in
+            let raw = col(stmt, 0)
+            let time = fromPreviousServiceDay ? (GTFSTime.shiftedFromPreviousDay(raw) ?? raw) : raw
             result.append(ScheduleEntry(
-                departureTime:  col(stmt, 0),
+                departureTime:  time,
                 tripId:         col(stmt, 1),
                 headsign:       col(stmt, 2),
                 routeId:        col(stmt, 3),
@@ -359,6 +435,15 @@ final class GTFSDatabase {
             ))
         }
         return result
+    }
+
+    /// Today's and yesterday's active services — see `ActiveServices`.
+    func fetchActiveServices(for date: Date = .init()) throws -> ActiveServices {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        return ActiveServices(
+            today:     try fetchActiveServiceIds(for: date),
+            yesterday: try fetchActiveServiceIds(for: yesterday)
+        )
     }
 
     func fetchActiveServiceIds(for date: Date = .init()) throws -> [String] {

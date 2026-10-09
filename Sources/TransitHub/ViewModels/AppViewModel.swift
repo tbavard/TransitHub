@@ -126,9 +126,9 @@ final class AppViewModel: ObservableObject {
                 let db = GTFSDatabase.forProviderId(pid)
                 try? db.open()
                 defer { db.close() }
-                let sids = (try? db.fetchActiveServiceIds()) ?? []
+                let services = (try? db.fetchActiveServices()) ?? ActiveServices(today: [], yesterday: [])
                 for stop in provStops {
-                    result[stop.id] = (try? db.fetchSchedule(stopId: stop.id, serviceIds: sids)) ?? []
+                    result[stop.id] = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
                 }
             }
             return result
@@ -142,8 +142,8 @@ final class AppViewModel: ObservableObject {
             let db = GTFSDatabase.forProviderId(pid)
             try db.open()
             defer { db.close() }
-            let serviceIds = try db.fetchActiveServiceIds()
-            return try db.fetchSchedule(stopId: stopId, serviceIds: serviceIds)
+            let services = try db.fetchActiveServices()
+            return try db.fetchSchedule(stopId: stopId, services: services)
         }.value
     }
 
@@ -287,10 +287,10 @@ final class AppViewModel: ObservableObject {
                 let db = GTFSDatabase.forProviderId(pid)
                 try? db.open()
                 defer { db.close() }
-                let sids = (try? db.fetchActiveServiceIds()) ?? []
+                let services = (try? db.fetchActiveServices()) ?? ActiveServices(today: [], yesterday: [])
                 for stop in provStops {
-                    let entries = (try? db.fetchSchedule(stopId: stop.id, serviceIds: sids)) ?? []
-                    let snapshotEntries = entries.prefix(6).map { e in
+                    let entries = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
+                    let snapshotEntries = entries.filter { !$0.hasDepartedToday }.prefix(6).map { e in
                         DepartureSnapshot.SnapshotEntry(
                             id:             UUID().uuidString,
                             minutesFromNow: e.minutesUntilDeparture,

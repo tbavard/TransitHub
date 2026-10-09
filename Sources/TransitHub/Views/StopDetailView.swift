@@ -497,17 +497,18 @@ struct ScheduleGrid: View {
     let entries: [ScheduleEntry]
     let nextEntry: ScheduleEntry?
 
-    private var byHour: [(hour: String, entries: [ScheduleEntry])] {
-        let groups = Dictionary(grouping: entries) { entry -> String in
-            let parts = entry.departureTime.split(separator: ":")
-            guard let h = Int(parts.first ?? "0") else { return "00" }
-            return String(format: "%02d", h % 24)
+    // Keyed by the raw GTFS hour (0…27+) so tonight's after-midnight trips
+    // ("24:15") sort at the bottom instead of merging into this morning's 00h
+    // row; the label wraps to 24h.
+    private var byHour: [(hour: Int, entries: [ScheduleEntry])] {
+        let groups = Dictionary(grouping: entries) { entry -> Int in
+            Int(entry.departureTime.split(separator: ":").first ?? "") ?? 0
         }
         return groups.sorted { $0.key < $1.key }
             .map { (hour: $0.key, entries: $0.value.sorted { $0.departureTime < $1.departureTime }) }
     }
 
-    private var visibleHours: [(hour: String, entries: [ScheduleEntry])] {
+    private var visibleHours: [(hour: Int, entries: [ScheduleEntry])] {
         let all = byHour
         guard let firstUpcoming = all.firstIndex(where: { row in
             row.entries.contains { !$0.hasDepartedToday }
@@ -520,7 +521,7 @@ struct ScheduleGrid: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(visibleHours, id: \.hour) { row in
                 HStack(alignment: .top, spacing: 8) {
-                    Text(row.hour + "h")
+                    Text(String(format: "%02dh", row.hour % 24))
                         .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 36, alignment: .leading)
