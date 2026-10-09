@@ -44,6 +44,8 @@ targets:
     dependencies:
       - package: ZIPFoundation
       - package: SwiftProtobuf
+      # Embeds the widget extension (home-screen widget + Live Activity UI).
+      - target: TransitHubWidget
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.TransitHub
       SWIFT_VERSION: "5.9"
@@ -74,9 +76,6 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.yourcompany.TransitHub
-    dependencies:
-      - target: TransitHub
-        embed: false
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.TransitHub.widget
       SWIFT_VERSION: "5.9"
