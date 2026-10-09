@@ -164,6 +164,8 @@
 "live.n_minutes" = "Dans %d minutes";
 "live.leave_now" = "Partir maintenant (%d min à pied)";
 "live.departed" = "Départ passé";
+"live.canceled" = "Départ annulé";
+"live.delayed_suffix" = "%@ · retard %d min";
 
 "Partir" = "Partir";
 "Arrêter le suivi" = "Arrêter le suivi";

@@ -164,6 +164,8 @@
 "live.n_minutes" = "In %d minutes";
 "live.leave_now" = "Leave now (%d min walk)";
 "live.departed" = "Departed";
+"live.canceled" = "Departure canceled";
+"live.delayed_suffix" = "%@ · %d min late";
 
 "Partir" = "Go";
 "Arrêter le suivi" = "Stop tracking";

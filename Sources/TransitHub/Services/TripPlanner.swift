@@ -179,7 +179,9 @@ enum TripPlanner {
                     arrivalTime:    row.arrivalTime,
                     tripId:         row.tripId,
                     numStops:       row.stopCount,
-                    liveDelaySeconds: departureDelay
+                    liveDelaySeconds: departureDelay,
+                    scheduledDeparture: scheduledDeparture,
+                    fromStopSequence: row.fromSequence
                 )
 
                 var legs: [TripLeg] = []
