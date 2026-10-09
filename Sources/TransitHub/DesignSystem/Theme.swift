@@ -64,6 +64,9 @@ enum Theme {
     static let statusWarning  = Color(hex: "FF9F0A") ?? .orange
     static let statusCritical = Color(hex: "FF453A") ?? .red
 
+    /// Favorite star.
+    static let favorite       = Color(hex: "FFD60A") ?? .yellow
+
     // MARK: Surfaces
 
     static let cardBackground      = Color(.secondarySystemGroupedBackground)
@@ -91,6 +94,25 @@ extension Color {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+
+    /// White, or near-black on genuinely light colors (yellow metro line,
+    /// white/pastel feed colors) where white text would be unreadable.
+    /// Based on relative luminance; the threshold deliberately favors white
+    /// so mid-tone brand/route colors keep the lively white-on-color look.
+    var readableForeground: Color {
+        #if canImport(UIKit)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &alpha) else { return .white }
+        func linear(_ c: CGFloat) -> Double {
+            let v = Double(c)
+            return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        let luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        return luminance > 0.5 ? Color.black.opacity(0.85) : .white
+        #else
+        return .white
+        #endif
     }
 
     /// Returns a lighter version of the color by blending toward white in the

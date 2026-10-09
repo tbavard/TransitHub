@@ -204,3 +204,17 @@
 "gtfs.error.invalid_archive" = "Invalid GTFS archive: stops.txt not found";
 "gtfs.error.empty_table" = "Incomplete import — table %@ is empty";
 "gtfs.error.no_calendar" = "Incomplete import — neither calendar nor calendar_dates found";
+
+// MARK: - Stop & route redesign
+"Station" = "Station";
+"Arrêt" = "Stop";
+"Favori" = "Favorite";
+"Favoriser" = "Favorite";
+"Partager" = "Share";
+"Localisation" = "Location";
+"Puis" = "Then";
+"Plus de départ aujourd'hui" = "No more departures today";
+"Départ" = "Origin";
+"Terminus" = "Terminus";
+"Mes arrêts" = "My stops";
+"Suivre ce départ" = "Track this departure";

@@ -204,3 +204,17 @@
 "gtfs.error.invalid_archive" = "Archive GTFS invalide: stops.txt introuvable";
 "gtfs.error.empty_table" = "Import incomplet — table %@ vide";
 "gtfs.error.no_calendar" = "Import incomplet — ni calendar ni calendar_dates";
+
+// MARK: - Stop & route redesign
+"Station" = "Station";
+"Arrêt" = "Arrêt";
+"Favori" = "Favori";
+"Favoriser" = "Favoriser";
+"Partager" = "Partager";
+"Localisation" = "Localisation";
+"Puis" = "Puis";
+"Plus de départ aujourd'hui" = "Plus de départ aujourd'hui";
+"Départ" = "Départ";
+"Terminus" = "Terminus";
+"Mes arrêts" = "Mes arrêts";
+"Suivre ce départ" = "Suivre ce départ";

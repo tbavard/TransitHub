@@ -61,6 +61,12 @@ struct StopDetailView: View {
         entries.first { !$0.hasDepartedToday } ?? entries.first
     }
 
+    /// The two departures right after `next`, for the "then in…" chips.
+    private func following(_ next: ScheduleEntry, in entries: [ScheduleEntry]) -> [ScheduleEntry] {
+        guard !next.hasDepartedToday else { return [] }
+        return Array(entries.drop(while: { $0.id != next.id }).dropFirst().prefix(2))
+    }
+
     // Walking information: "350 m · 4 min"
     private var walkingInfo: String? {
         guard let loc = appVM.userLocation else { return nil }
@@ -69,11 +75,13 @@ struct StopDetailView: View {
         return "\(stop.formattedDistance(from: loc)) · \(walkMin) min"
     }
 
+    private var stopIcon: String { stop.isStation ? "tram.fill" : "bus.fill" }
+
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: .sectionHeaders) {
+            LazyVStack(alignment: .leading, spacing: Spacing.xl, pinnedViews: .sectionHeaders) {
                 stopHeaderCard
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, Spacing.xl)
 
                 if servesOtherRoutes, let ctx = routeContext {
                     routeScopePicker(ctx)
@@ -111,11 +119,14 @@ struct StopDetailView: View {
                         }
                     }
                 }
+
+                locationCard
+                    .padding(.horizontal, Spacing.xl)
             }
-            .padding(.top, 12)
-            .padding(.bottom, 28)
+            .padding(.top, Spacing.md)
+            .padding(.bottom, Spacing.xxxl)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Theme.screenBackground)
         .navigationTitle(stop.name)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await loadSchedule() }
@@ -132,58 +143,89 @@ struct StopDetailView: View {
         }
     }
 
-    // MARK: - Header card (map + info + actions)
+    // MARK: - Header card (identity + actions)
 
     private var stopHeaderCard: some View {
-        VStack(spacing: 0) {
-            mapSnippet
-                .frame(height: 140)
-                .clipShape(UnevenRoundedRectangle(
-                    topLeadingRadius: 16, bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 0, topTrailingRadius: 16
-                ))
-                .overlay(alignment: .topTrailing) {
-                    if let info = walkingInfo {
-                        HStack(spacing: 4) {
-                            Image(systemName: "figure.walk")
-                                .font(.caption2.weight(.bold))
-                            Text(info)
-                                .font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(10)
-                    }
-                }
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                Image(systemName: stopIcon)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: Radius.lg))
+                    .shadow(color: Theme.brandStart.opacity(0.3), radius: 6, x: 0, y: 3)
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(stop.name)
                         .font(.title3.bold())
                         .lineLimit(2)
-                    Spacer(minLength: 4)
+                    HStack(spacing: Spacing.s) {
+                        ProviderBadge(providerId: stop.providerId)
+                        Text(stop.isStation ? "Station" : "Arrêt")
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                        Text("·").font(Typography.caption).foregroundStyle(.tertiary)
+                        Text("#\(stop.id)")
+                            .font(Typography.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-
-                HStack(spacing: 6) {
-                    ProviderBadge(providerId: stop.providerId)
-                    Text(stop.isStation ? "Station de métro" : "Arrêt d'autobus")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("·").font(.caption).foregroundStyle(.tertiary)
-                    Text("#\(stop.id)")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.tertiary)
-                }
-
-                actionBar
+                Spacer(minLength: 0)
             }
-            .padding(Spacing.lg)
+
+            if let info = walkingInfo {
+                Label(info, systemImage: "figure.walk")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(Theme.brandStart)
+                    .tintedCapsule(Theme.brandStart)
+            }
+
+            actionBar
         }
+        .padding(Spacing.lg)
         .card()
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: Spacing.sm) {
+            StopActionButton(
+                icon: isFavorite ? "star.fill" : "star",
+                label: isFavorite ? "Favori" : "Favoriser",
+                tint: isFavorite ? Theme.favorite : Theme.brandStart
+            ) {
+                withAnimation(.spring(duration: 0.25)) {
+                    appVM.toggleFavorite(stop)
+                }
+            }
+
+            StopActionButton(
+                icon: "figure.walk",
+                label: "Itinéraire",
+                tint: Theme.brandStart
+            ) {
+                openInMaps()
+            }
+
+            ShareLink(
+                item: "\(stop.name) — arrêt #\(stop.id)",
+                subject: Text(stop.name)
+            ) {
+                StopActionLabel(icon: "square.and.arrow.up", label: "Partager", tint: Theme.brandStart)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Location card (map at the bottom: the schedule comes first)
+
+    private var locationCard: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            SectionHeader(title: "Localisation", icon: "map.fill", color: Theme.brandStart)
+            mapSnippet
+                .frame(height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                .shadow(color: Theme.cardShadow, radius: 3, x: 0, y: 2)
+        }
     }
 
     private var mapSnippet: some View {
@@ -194,51 +236,18 @@ struct StopDetailView: View {
             ))) {
                 UserAnnotation()
                 Annotation("", coordinate: stop.coordinate, anchor: .bottom) {
-                    ZStack {
-                        Circle()
-                            .fill(stop.isStation ? Color.blue : Color.accentColor)
-                            .frame(width: 28, height: 28)
-                            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-                        Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
+                    Image(systemName: stopIcon)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Theme.brandGradient, in: Circle())
+                        .shadow(color: Theme.brandStart.opacity(0.4), radius: 3, x: 0, y: 1)
                 }
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
             .allowsHitTesting(false)
         }
         .buttonStyle(.plain)
-    }
-
-    private var actionBar: some View {
-        HStack(spacing: 8) {
-            StopActionButton(
-                icon: isFavorite ? "star.fill" : "star",
-                label: isFavorite ? "Favori" : "Favoriser",
-                tint: isFavorite ? .yellow : .accentColor
-            ) {
-                withAnimation(.spring(duration: 0.25)) {
-                    appVM.toggleFavorite(stop)
-                }
-            }
-
-            StopActionButton(
-                icon: "figure.walk",
-                label: "Itinéraire",
-                tint: .accentColor
-            ) {
-                openInMaps()
-            }
-
-            ShareLink(
-                item: "\(stop.name) — arrêt #\(stop.id)",
-                subject: Text(stop.name)
-            ) {
-                StopActionLabel(icon: "square.and.arrow.up", label: "Partager", tint: .accentColor)
-            }
-            .buttonStyle(.plain)
-        }
     }
 
     // MARK: - Route header
@@ -282,39 +291,38 @@ struct StopDetailView: View {
 
     @ViewBuilder
     private var stopAlertsSection: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.s) {
             ForEach(stopAlerts) { alert in
                 let color = alert.severityColor
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: Spacing.m) {
                     Image(systemName: alert.effectIcon)
                         .font(.subheadline)
                         .foregroundStyle(color)
                         .frame(width: 20)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
                         Text(alert.typeLabel)
-                            .font(.caption.weight(.semibold))
+                            .font(Typography.caption.weight(.semibold))
                             .foregroundStyle(color)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(color.opacity(0.12), in: Capsule())
+                            .tintedCapsule(color)
                         Text(alert.title)
-                            .font(.subheadline.weight(.medium))
+                            .font(Typography.body.weight(.medium))
                             .foregroundStyle(.primary)
                         if !alert.body.isEmpty {
                             Text(alert.body)
-                                .font(.caption)
+                                .font(Typography.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(color.opacity(0.2), lineWidth: 1))
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.m)
+                .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: Radius.md))
+                .overlay(RoundedRectangle(cornerRadius: Radius.md).strokeBorder(color.opacity(0.2), lineWidth: 1))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.xl)
     }
 
     // MARK: - Per-route section
@@ -322,45 +330,49 @@ struct StopDetailView: View {
     @ViewBuilder
     private func routeSectionBody(group: StopDepartureGroup) -> some View {
         let next = nextEntry(for: group.entries)
+        let tint = Color(hex: group.routeColor) ?? Theme.brandStart
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             if let next {
-                NextDepartureBanner(stop: stop, entry: next, now: now)
+                NextDepartureHero(
+                    entry: next,
+                    following: following(next, in: group.entries),
+                    now: now
+                )
                 TrackDepartureButton(entry: next, stop: stop, manager: liveActivityManager)
             }
-            ScheduleGrid(entries: group.entries, nextEntry: next)
+            ScheduleGrid(entries: group.entries, nextEntry: next, tint: tint)
+                .padding(Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .card()
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.bottom, Spacing.sm)
     }
 
     // MARK: - Skeleton
 
     private var skeletonSections: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: Spacing.xxl) {
             ForEach(0..<3, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        RoundedRectangle(cornerRadius: 8)
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    HStack(spacing: Spacing.m) {
+                        RoundedRectangle(cornerRadius: Radius.sm)
                             .fill(Color(.systemFill))
                             .frame(width: 44, height: 28)
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: Radius.xs)
                             .fill(Color(.systemFill))
                             .frame(width: 140, height: 14)
                         Spacer()
                     }
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: Radius.xl)
                         .fill(Color(.systemFill))
-                        .frame(height: 66)
-                    HStack(spacing: 6) {
-                        ForEach(0..<7, id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color(.systemFill))
-                                .frame(width: 28, height: 26)
-                        }
-                    }
+                        .frame(height: 96)
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .fill(Color(.systemFill))
+                        .frame(height: 80)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, Spacing.xl)
             }
         }
         .redacted(reason: .placeholder)
@@ -380,7 +392,8 @@ struct StopDetailView: View {
     // MARK: - Data loading
 
     private func loadSchedule() async {
-        isLoading = true
+        // Skeleton only on first load; refreshes keep the current content.
+        isLoading = schedule.isEmpty
         error = nil
         do {
             schedule = try await appVM.fetchSchedule(for: stop)
@@ -395,7 +408,7 @@ struct StopDetailView: View {
 
 private struct StopActionButton: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     let tint: Color
     let action: () -> Void
 
@@ -409,86 +422,104 @@ private struct StopActionButton: View {
 
 private struct StopActionLabel: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     let tint: Color
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Spacing.xs) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
             Text(label)
                 .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(tint)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.vertical, Spacing.sm)
+        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.md))
     }
 }
 
-// MARK: - Next Departure Banner
+// MARK: - Next departure hero
+//
+// The headline of each route section: big countdown on the route's own
+// gradient, headsign, and the next two departures as chips.
 
-struct NextDepartureBanner: View {
-    let stop: Stop
+struct NextDepartureHero: View {
     let entry: ScheduleEntry
+    let following: [ScheduleEntry]
+    /// Not read directly: changing it every minute re-renders the countdown.
     let now: Date
 
     private var minutes: Int { entry.minutesUntilDeparture }
-    private var isPast: Bool  { entry.hasDepartedToday }
+    private var isPast: Bool { entry.hasDepartedToday }
+
+    private var tint: Color {
+        isPast ? Color(.systemGray) : (Color(hex: entry.routeColor) ?? Theme.brandStart)
+    }
 
     private var countdownText: String {
         if isPast       { return entry.displayTime }
         if minutes == 0 { return String(localized: "countdown.imminent") }
-        if minutes < 60 { return String(format: String(localized: "countdown.minutes"), minutes) }
+        if minutes < 60 { return "\(minutes) min" }
         return entry.displayTime
     }
 
-    private var urgencyColor: Color {
-        if isPast       { return .secondary }
-        if minutes == 0 { return .green }
-        if minutes <= 5 { return .orange }
-        return .primary
+    private static func shortCountdown(_ e: ScheduleEntry) -> String {
+        let m = e.minutesUntilDeparture
+        return m < 60 ? "\(m) min" : e.displayTime
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(urgencyColor.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(urgencyColor)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Prochain départ")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(countdownText)
-                    .font(.title3.bold())
-                    .foregroundStyle(urgencyColor)
-                    .contentTransition(.numericText())
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                if !isPast && minutes < 60 {
-                    Text(entry.displayTime)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+        let fg = tint.readableForeground
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(isPast ? "Plus de départ aujourd'hui" : "Prochain départ")
+                        .font(Typography.caption.weight(.semibold))
+                        .opacity(0.85)
+                    Text(countdownText)
+                        .font(.system(.largeTitle, design: .rounded).weight(.heavy))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .contentTransition(.numericText())
                 }
-                Text(entry.headsign)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Spacer(minLength: Spacing.sm)
+                VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                    if !isPast && minutes < 60 {
+                        Text(entry.displayTime)
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                    }
+                    Label(entry.headsign, systemImage: "arrow.right")
+                        .font(Typography.caption.weight(.medium))
+                        .lineLimit(1)
+                        .opacity(0.9)
+                }
+            }
+
+            if !following.isEmpty {
+                HStack(spacing: Spacing.s) {
+                    Text("Puis")
+                        .font(Typography.caption)
+                        .opacity(0.85)
+                    ForEach(following) { e in
+                        Text(Self.shortCountdown(e))
+                            .font(Typography.caption.weight(.bold))
+                            .monospacedDigit()
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(fg.opacity(0.18), in: Capsule())
+                    }
+                }
             }
         }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
-        .card(cornerRadius: Radius.lg)
-        .animation(.easeInOut(duration: 0.3), value: countdownText)
+        .foregroundStyle(fg)
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.livelyGradient, in: RoundedRectangle(cornerRadius: Radius.xl))
+        .shadow(color: tint.opacity(0.35), radius: 10, x: 0, y: 6)
+        .animation(.snappy, value: countdownText)
     }
 }
 
@@ -501,11 +532,11 @@ struct RouteScheduleHeader: View {
     var showsDisclosure = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.m) {
             RoutePill(shortName: routeShortName, color: color)
                 .frame(width: 48)
             Text(headsign)
-                .font(.subheadline.weight(.semibold))
+                .font(Typography.body.weight(.semibold))
                 .lineLimit(1)
             Spacer()
             if showsDisclosure {
@@ -515,8 +546,8 @@ struct RouteScheduleHeader: View {
             }
         }
         .contentShape(Rectangle())
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.m)
         .background(.ultraThinMaterial)
     }
 }
@@ -526,6 +557,7 @@ struct RouteScheduleHeader: View {
 struct ScheduleGrid: View {
     let entries: [ScheduleEntry]
     let nextEntry: ScheduleEntry?
+    var tint: Color = Theme.brandStart
 
     // Keyed by the raw GTFS hour (0…27+) so tonight's after-midnight trips
     // ("24:15") sort at the bottom instead of merging into this morning's 00h
@@ -548,9 +580,9 @@ struct ScheduleGrid: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.s) {
             ForEach(visibleHours, id: \.hour) { row in
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: Spacing.sm) {
                     Text(String(format: "%02dh", row.hour % 24))
                         .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -561,12 +593,13 @@ struct ScheduleGrid: View {
                         ForEach(row.entries) { entry in
                             MinuteChip(
                                 entry: entry,
-                                isNext: entry.id == nextEntry?.id
+                                isNext: entry.id == nextEntry?.id,
+                                tint: tint
                             )
                         }
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, Spacing.xxs)
             }
         }
     }
@@ -577,6 +610,7 @@ struct ScheduleGrid: View {
 struct MinuteChip: View {
     let entry: ScheduleEntry
     let isNext: Bool
+    var tint: Color = Theme.brandStart
 
     private var minuteStr: String {
         let parts = entry.departureTime.split(separator: ":")
@@ -584,21 +618,23 @@ struct MinuteChip: View {
         return String(format: "%02d", m)
     }
 
+    private var background: AnyShapeStyle {
+        if isNext { return AnyShapeStyle(tint.livelyGradient) }
+        return AnyShapeStyle(Color(.systemFill).opacity(entry.hasDepartedToday ? 0.5 : 1))
+    }
+
     var body: some View {
         Text(minuteStr)
             .font(.system(isNext ? .body : .callout, design: .monospaced)
                 .weight(isNext ? .bold : .regular))
             .foregroundStyle(
-                isNext ? .white :
+                isNext ? tint.readableForeground :
                 entry.hasDepartedToday ? Color(.tertiaryLabel) : .primary
             )
-            .padding(.horizontal, isNext ? 10 : 7)
-            .padding(.vertical,   isNext ?  6 : 3)
-            .background(
-                isNext ? Color.accentColor :
-                entry.hasDepartedToday ? Color(.systemFill).opacity(0.5) : Color(.systemFill),
-                in: RoundedRectangle(cornerRadius: isNext ? 8 : 5)
-            )
+            .padding(.horizontal, isNext ? Spacing.m : 7)
+            .padding(.vertical,   isNext ? Spacing.s : 3)
+            .background(background, in: RoundedRectangle(cornerRadius: isNext ? Radius.sm : 5))
+            .shadow(color: isNext ? tint.opacity(0.35) : .clear, radius: 4, x: 0, y: 2)
             .scaleEffect(isNext ? 1.05 : 1.0)
             .animation(.spring(response: 0.3), value: isNext)
     }

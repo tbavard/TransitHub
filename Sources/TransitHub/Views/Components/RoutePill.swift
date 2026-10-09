@@ -9,16 +9,18 @@ struct RoutePill: View {
     let shortName: String
     let color: String
 
+    private var tint: Color { Color(hex: color) ?? Theme.brandStart }
+
     var body: some View {
         Text(shortName)
             .font(Typography.pill)
-            .foregroundStyle(.white)
+            .foregroundStyle(tint.readableForeground)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.s)
             .frame(minWidth: 40)
-            .background((Color(hex: color) ?? Theme.brandStart).livelyGradient,
+            .background(tint.livelyGradient,
                         in: RoundedRectangle(cornerRadius: Radius.sm))
     }
 }

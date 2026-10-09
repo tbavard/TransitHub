@@ -339,16 +339,10 @@ struct TrackDepartureButton: View {
     @ObservedObject var manager: LiveActivityManager
 
     private var isCurrentlyTracking: Bool { manager.isTracking(entry: entry) }
-    private var minutes: Int {
-        let parts = entry.departureTime.split(separator: ":")
-        guard parts.count >= 2, let h = Int(parts[0]), let m = Int(parts[1]) else { return -1 }
-        let cal = Calendar.current
-        let now = Date()
-        var dep = (h % 24) * 60 + m
-        let cur = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
-        if dep < cur { dep += 24 * 60 }
-        return dep - cur
-    }
+    // Same source of truth as the rest of the stop screen (handles GTFS
+    // times ≥ 24:00 correctly, unlike the former local `h % 24` math).
+    private var minutes: Int { entry.minutesUntilDeparture }
+    private var tint: Color { Color(hex: entry.routeColor) ?? Theme.brandStart }
 
     var body: some View {
         if minutes >= 0 && minutes <= 60 {
@@ -364,11 +358,11 @@ struct TrackDepartureButton: View {
                     systemImage: isCurrentlyTracking ? "bell.slash" : "bell.badge.fill"
                 )
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isCurrentlyTracking ? .secondary : Color.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .foregroundStyle(isCurrentlyTracking ? Color.secondary : tint.readableForeground)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.s)
                 .background(
-                    isCurrentlyTracking ? Color(.systemFill) : (Color(hex: entry.routeColor) ?? .blue),
+                    isCurrentlyTracking ? AnyShapeStyle(Color(.systemFill)) : AnyShapeStyle(tint.livelyGradient),
                     in: Capsule()
                 )
             }

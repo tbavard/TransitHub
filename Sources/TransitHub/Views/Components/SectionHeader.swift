@@ -5,7 +5,7 @@ import SwiftUI
 // Small colored-icon + title header used above dashboard sections.
 
 struct SectionHeader: View {
-    let title: String
+    let title: LocalizedStringKey
     let icon: String
     let color: Color
 
