@@ -51,23 +51,56 @@ struct ServiceAlert: Identifiable {
     let affectedRouteIds: [String]
     let affectedStopCodes: [String]
     let fetchedAt: Date
+    /// GTFS-RT cause / effect enum case names ("construction", "detour"…),
+    /// nil for the STM JSON feed which only has free-text types.
+    var cause: String? = nil
+    var effect: String? = nil
+    /// Feed-provided severity_level (1 info, 2 warning, 3 severe), if any.
+    var feedSeverity: Int? = nil
 
+    /// 1 info, 2 warning, 3 critical. Prefers the feed's own severity, then
+    /// the effect (what riders experience), then the STM free-text heuristic.
     var severityLevel: Int {
+        if let feedSeverity { return feedSeverity }
+        switch effect {
+        case "noService":
+            return 3
+        case "reducedService", "significantDelays", "detour", "stopMoved", "modifiedService":
+            return 2
+        default:
+            break
+        }
         let t = type.lowercased()
         if t.contains("majeur") || t.contains("urgent") { return 3 }
         if t.contains("perturbation") || t.contains("travaux") { return 2 }
         return 1
     }
 
-    var effectIcon: String {
-        switch severityLevel {
+    var effectIcon: String { Self.icon(forSeverity: severityLevel) }
+
+    static func icon(forSeverity level: Int) -> String {
+        switch level {
         case 3: return "exclamationmark.triangle.fill"
         case 2: return "clock.badge.exclamationmark.fill"
         default: return "info.circle.fill"
         }
     }
 
-    var typeLabel: String { type.isEmpty ? "Avis" : type }
+    /// Human label: the effect ("Détour") when meaningful, else the cause
+    /// ("Travaux"), else the feed's free text — never a raw enum name.
+    var typeLabel: String {
+        if let effect, let label = Self.localizedLabel("alert.effect.\(effect)") { return label }
+        if let cause, let label = Self.localizedLabel("alert.cause.\(cause)") { return label }
+        if type.isEmpty || type == cause || type == effect { return String(localized: "alert.generic") }
+        return type
+    }
+
+    /// nil when the key has no translation (unknown / uninformative values
+    /// such as "unknownCause" are deliberately left out of the tables).
+    private static func localizedLabel(_ key: String) -> String? {
+        let value = NSLocalizedString(key, comment: "")
+        return value == key ? nil : value
+    }
 
     /// Same palette as the rest of the app (Theme), not the stock system hues.
     var severityColor: Color { Theme.severityColor(level: severityLevel) }

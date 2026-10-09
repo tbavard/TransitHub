@@ -319,10 +319,20 @@ final class GTFSRealtimeService {
             let routes = alert.informedEntity.map { $0.routeID }.filter { !$0.isEmpty }
             let stops  = alert.informedEntity.map { $0.stopID  }.filter { !$0.isEmpty }
 
+            let feedSeverity: Int?
+            switch alert.hasSeverityLevel ? alert.severityLevel : .unknownSeverity {
+            case .info:    feedSeverity = 1
+            case .warning: feedSeverity = 2
+            case .severe:  feedSeverity = 3
+            default:       feedSeverity = nil
+            }
+
             return ServiceAlert(id: entity.id.isEmpty ? UUID().uuidString : entity.id,
                                 title: title, body: body, type: type,
                                 affectedRouteIds: routes, affectedStopCodes: stops,
-                                fetchedAt: Date())
+                                fetchedAt: Date(),
+                                cause: cause, effect: effect,
+                                feedSeverity: feedSeverity)
         }
     }
 

@@ -251,3 +251,27 @@
 "Centrer sur ma position" = "Centrer sur ma position";
 "Afficher les véhicules" = "Afficher les véhicules";
 "Masquer les véhicules" = "Masquer les véhicules";
+
+// MARK: - Alert types (GTFS-RT effect / cause)
+"alert.generic" = "Avis";
+"alert.effect.noService" = "Service interrompu";
+"alert.effect.reducedService" = "Service réduit";
+"alert.effect.significantDelays" = "Retards importants";
+"alert.effect.detour" = "Détour";
+"alert.effect.additionalService" = "Service supplémentaire";
+"alert.effect.modifiedService" = "Service modifié";
+"alert.effect.stopMoved" = "Arrêt déplacé";
+"alert.effect.accessibilityIssue" = "Accessibilité";
+"alert.cause.technicalProblem" = "Problème technique";
+"alert.cause.strike" = "Grève";
+"alert.cause.demonstration" = "Manifestation";
+"alert.cause.accident" = "Accident";
+"alert.cause.holiday" = "Jour férié";
+"alert.cause.weather" = "Météo";
+"alert.cause.maintenance" = "Maintenance";
+"alert.cause.construction" = "Travaux";
+"alert.cause.policeActivity" = "Intervention policière";
+"alert.cause.medicalEmergency" = "Urgence médicale";
+"alerts.section.critical" = "Perturbations majeures";
+"alerts.section.warning" = "Perturbations";
+"alerts.section.info" = "Informations";

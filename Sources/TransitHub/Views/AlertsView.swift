@@ -100,6 +100,14 @@ struct AlertsView: View {
         }
     }
 
+    private static func sectionTitle(forSeverity level: Int) -> String {
+        switch level {
+        case 3:  return String(localized: "alerts.section.critical")
+        case 2:  return String(localized: "alerts.section.warning")
+        default: return String(localized: "alerts.section.info")
+        }
+    }
+
     // MARK: - Network status banner
 
     private var networkStatusBanner: some View {
@@ -151,7 +159,7 @@ struct AlertsView: View {
                         ForEach(affectedRoutes) { route in
                             FilterChip(
                                 label: route.shortName,
-                                color: route.routeColor,
+                                color: route.officialRouteColor,
                                 isSelected: selectedRouteFilter == route.gtfsId
                             ) {
                                 selectedRouteFilter = selectedRouteFilter == route.gtfsId ? nil : route.gtfsId
@@ -166,10 +174,19 @@ struct AlertsView: View {
             }
 
             List {
-                if !filteredAlerts.isEmpty {
-                    Section("Avis de service") {
-                        ForEach(filteredAlerts) { alert in
-                            AlertRow(alert: alert, routes: appVM.routes)
+                // One section per severity, worst first, each headed in its
+                // severity color.
+                ForEach([3, 2, 1], id: \.self) { level in
+                    let alerts = filteredAlerts.filter { $0.severityLevel == level }
+                    if !alerts.isEmpty {
+                        Section {
+                            ForEach(alerts) { alert in
+                                AlertRow(alert: alert, routes: appVM.routes)
+                            }
+                        } header: {
+                            Label(Self.sectionTitle(forSeverity: level),
+                                  systemImage: ServiceAlert.icon(forSeverity: level))
+                                .foregroundStyle(Theme.severityColor(level: level))
                         }
                     }
                 }
@@ -249,12 +266,7 @@ struct AlertRow: View {
 
                             ForEach(alert.affectedRouteIds.prefix(4), id: \.self) { rid in
                                 if let r = route(for: rid) {
-                                    Text(r.shortName)
-                                        .font(.caption.bold())
-                                        .foregroundStyle(r.routeTextColor)
-                                        .padding(.horizontal, 5).padding(.vertical, 2)
-                                        .background(r.routeColor,
-                                                    in: RoundedRectangle(cornerRadius: 4))
+                                    RoutePill(route: r)
                                 } else {
                                     Text(rid)
                                         .font(.caption.bold())
@@ -310,11 +322,7 @@ struct DelayRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     if let r = route {
-                        Text(r.shortName)
-                            .font(.caption.bold())
-                            .foregroundStyle(r.routeTextColor)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(r.routeColor, in: RoundedRectangle(cornerRadius: 4))
+                        RoutePill(route: r)
                         Text(r.longName)
                             .font(.body.weight(.medium))
                             .lineLimit(1)
@@ -356,8 +364,9 @@ struct FilterChip: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(isSelected ? color : Color(.systemFill), in: Capsule())
-                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? AnyShapeStyle(color.livelyGradient) : AnyShapeStyle(Color(.systemFill)),
+                            in: Capsule())
+                .foregroundStyle(isSelected ? color.readableForeground : .primary)
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: isSelected)

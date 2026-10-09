@@ -8,8 +8,10 @@ import SwiftUI
 struct RoutePill: View {
     let shortName: String
     let color: String
+    /// Wins over `color` (e.g. official STM metro colors from `Route`).
+    var colorOverride: Color? = nil
 
-    private var tint: Color { Color(hex: color) ?? Theme.brandStart }
+    private var tint: Color { colorOverride ?? Color(hex: color) ?? Theme.brandStart }
 
     var body: some View {
         Text(shortName)
@@ -23,5 +25,13 @@ struct RoutePill: View {
             .background(tint.livelyGradient,
                         in: RoundedRectangle(cornerRadius: Radius.sm))
             .accessibilityLabel(A11y.route(shortName))
+    }
+}
+
+extension RoutePill {
+    /// Pill for a known route, using its official color when it has one.
+    init(route: Route) {
+        self.init(shortName: route.shortName, color: route.color,
+                  colorOverride: route.officialRouteColor)
     }
 }
