@@ -27,6 +27,26 @@ final class GTFSTimeTests: XCTestCase {
         XCTAssertEqual(sorted, ["08:05:00", "10:00:00", "23:00:00"])
     }
 
+    func testInterpolationFillsGapsLinearlyByStopCount() {
+        let filled = GTFSTime.interpolated(["08:00:00", nil, nil, "08:09:00"])
+        XCTAssertEqual(filled, ["08:00:00", "08:03:00", "08:06:00", "08:09:00"])
+    }
+
+    func testInterpolationHandlesSeveralGapsAndOvernight() {
+        let filled = GTFSTime.interpolated(["23:58:00", nil, "24:02:00", nil, "24:10:00"])
+        XCTAssertEqual(filled, ["23:58:00", "24:00:00", "24:02:00", "24:06:00", "24:10:00"])
+    }
+
+    func testInterpolationLeavesUnanchoredEndsNil() {
+        let filled = GTFSTime.interpolated([nil, "08:00:00", nil])
+        XCTAssertEqual(filled, [nil, "08:00:00", nil])
+    }
+
+    func testInterpolationKeepsFullyTimedTripUnchanged() {
+        let times: [String?] = ["08:00:00", "08:05:30", "08:07:00"]
+        XCTAssertEqual(GTFSTime.interpolated(times), times)
+    }
+
     func testShiftFromPreviousDay() {
         XCTAssertEqual(GTFSTime.shiftedFromPreviousDay("25:10:00"), "01:10:00")
         XCTAssertEqual(GTFSTime.shiftedFromPreviousDay("24:00:00"), "00:00:00")

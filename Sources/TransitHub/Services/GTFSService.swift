@@ -193,6 +193,7 @@ final class GTFSService {
         try await importStopTimes(dir: gtfsRoot, db: db, onProgress: { p in
             onProgress(0.55 + p * 0.43, String(format: String(localized: "gtfs.importing_stoptimes_progress"), Int(p * 100)))
         })
+        try db.interpolateMissingStopTimes()
 
         // Validate every table the schedule query depends on has rows — a wrong
         // ZIP layout makes `openCSV` return nil and every importer silently
@@ -310,12 +311,18 @@ final class GTFSService {
             guard !line.isEmpty else { continue }
             let v = splitCSV(line)
             guard !v.isEmpty else { continue }
-            let departure = GTFSTime.normalized(field(v, csv.index, "departure_time"))
-            guard !departure.isEmpty else { continue }   // skip timepoint=0 interpolated rows
+            // Non-timepoint stops may have no times at all. They used to be
+            // dropped, which removed those stops from route lists and
+            // schedules; they are now kept with empty times and filled by
+            // `interpolateMissingStopTimes()` once the whole file is in.
+            let rawDeparture = GTFSTime.normalized(field(v, csv.index, "departure_time"))
+            let rawArrival   = GTFSTime.normalized(field(v, csv.index, "arrival_time"))
+            let departure = rawDeparture.isEmpty ? rawArrival : rawDeparture
+            let arrival   = rawArrival.isEmpty ? rawDeparture : rawArrival
             db.insertStopTime(
                 tripId:    field(v, csv.index, "trip_id"),
                 stopId:    field(v, csv.index, "stop_id"),
-                arrival:   GTFSTime.normalized(field(v, csv.index, "arrival_time")),
+                arrival:   arrival,
                 departure: departure,
                 seq:       Int(field(v, csv.index, "stop_sequence")) ?? 0
             )

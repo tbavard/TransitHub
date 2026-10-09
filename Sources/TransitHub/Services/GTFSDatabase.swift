@@ -42,7 +42,8 @@ final class GTFSDatabase {
     /// Bump when the import format changes in a way that requires existing
     /// databases to be rebuilt (checked by `GTFSService.isDatabaseFresh`).
     /// v2: stop_times times normalized to zero-padded "HH:MM:SS".
-    static let dataVersion = 2
+    /// v3: non-timepoint stop_times kept and interpolated instead of dropped.
+    static let dataVersion = 3
 
     // MARK: State
 
@@ -339,7 +340,8 @@ final class GTFSDatabase {
         """
         var params: [Any] = [stopId]
         params.append(contentsOf: serviceIds)
-        params.append(fromPreviousServiceDay ? "24:00:00" : "")
+        // "00:00:00" lower bound also excludes rows left without a time.
+        params.append(fromPreviousServiceDay ? "24:00:00" : "00:00:00")
         var result: [ScheduleEntry] = []
         try query(sql, params) { stmt in
             let raw = col(stmt, 0)
@@ -408,6 +410,7 @@ final class GTFSDatabase {
               AND st2.stop_id IN (\(toPh))
               AND t.service_id IN (\(svcPh))
               AND st1.departure_time >= ?
+              AND st2.arrival_time <> ''
             ORDER BY st1.departure_time ASC, stops_between ASC
             LIMIT ?
         """
@@ -568,6 +571,58 @@ final class GTFSDatabase {
     func finalizeStopTimeInsert() {
         sqlite3_finalize(stopTimeStmt)
         stopTimeStmt = nil
+    }
+
+    /// Fills stop_times rows imported without times (non-timepoint stops) by
+    /// linear interpolation between the surrounding timed stops of the same
+    /// trip. Works in chunks of trips to keep memory bounded on large feeds.
+    func interpolateMissingStopTimes() throws {
+        var tripIds: [String] = []
+        try query("SELECT DISTINCT trip_id FROM stop_times WHERE departure_time = ''") { stmt in
+            tripIds.append(col(stmt, 0))
+        }
+        guard !tripIds.isEmpty else { return }
+
+        var update: OpaquePointer?
+        let sql = "UPDATE stop_times SET arrival_time = ?, departure_time = ? WHERE trip_id = ? AND stop_sequence = ?"
+        guard sqlite3_prepare_v2(db, sql, -1, &update, nil) == SQLITE_OK else {
+            throw GTFSError.databaseError("Prepare interpolation: \(String(cString: sqlite3_errmsg(db)))")
+        }
+        defer { sqlite3_finalize(update) }
+
+        try beginTransaction()
+        do {
+            for start in stride(from: 0, to: tripIds.count, by: 500) {
+                let chunk = Array(tripIds[start..<min(start + 500, tripIds.count)])
+                let ph = chunk.map { _ in "?" }.joined(separator: ",")
+                var rowsByTrip: [String: [(seq: Int, time: String)]] = [:]
+                try query(
+                    "SELECT trip_id, stop_sequence, departure_time FROM stop_times WHERE trip_id IN (\(ph)) ORDER BY trip_id, stop_sequence",
+                    chunk
+                ) { stmt in
+                    rowsByTrip[col(stmt, 0), default: []].append(
+                        (seq: Int(sqlite3_column_int(stmt, 1)), time: col(stmt, 2))
+                    )
+                }
+                for (tripId, rows) in rowsByTrip {
+                    let filled = GTFSTime.interpolated(rows.map { $0.time.isEmpty ? nil : $0.time })
+                    for (row, value) in zip(rows, filled) where row.time.isEmpty {
+                        guard let value else { continue }   // no anchor on one side
+                        sqlite3_bind_text(update, 1, value,  -1, GTFSDatabase.transient)
+                        sqlite3_bind_text(update, 2, value,  -1, GTFSDatabase.transient)
+                        sqlite3_bind_text(update, 3, tripId, -1, GTFSDatabase.transient)
+                        sqlite3_bind_int64(update, 4, Int64(row.seq))
+                        sqlite3_step(update)
+                        sqlite3_reset(update)
+                        sqlite3_clear_bindings(update)
+                    }
+                }
+            }
+            try commit()
+        } catch {
+            rollback()
+            throw error
+        }
     }
 
     // MARK: - Internal helpers

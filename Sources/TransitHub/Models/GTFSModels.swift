@@ -377,6 +377,38 @@ enum GTFSTime {
         return String(format: "%02d:%02d:%02d", h, m, s)
     }
 
+    /// Seconds since midnight of a "HH:MM[:SS]" time (HH may exceed 23).
+    static func seconds(of time: String) -> Int? {
+        let parts = time.split(separator: ":").compactMap { Int($0) }
+        guard parts.count >= 2 else { return nil }
+        return parts[0] * 3600 + parts[1] * 60 + (parts.count > 2 ? parts[2] : 0)
+    }
+
+    /// "HH:MM:SS" from seconds since midnight (HH may exceed 23).
+    static func format(seconds: Int) -> String {
+        String(format: "%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+    }
+
+    /// Fills nil times of one trip (ordered by stop_sequence) by linear
+    /// interpolation between the nearest known times on each side. Gaps with
+    /// no known time before or after stay nil. Interpolates by stop count —
+    /// shape_dist_traveled would be more precise but isn't imported.
+    static func interpolated(_ times: [String?]) -> [String?] {
+        let secs = times.map { $0.flatMap(seconds(of:)) }
+        var out = times
+        var lastKnown: Int? = nil
+        for (i, value) in secs.enumerated() {
+            guard let b = value else { continue }
+            if let l = lastKnown, i - l > 1, let a = secs[l] {
+                for k in (l + 1)..<i {
+                    out[k] = format(seconds: a + (b - a) * (k - l) / (i - l))
+                }
+            }
+            lastKnown = i
+        }
+        return out
+    }
+
     /// Moves an after-midnight time of the previous service day onto today's
     /// clock ("25:10:00" → "01:10:00"). nil for times before 24:00.
     static func shiftedFromPreviousDay(_ time: String) -> String? {
