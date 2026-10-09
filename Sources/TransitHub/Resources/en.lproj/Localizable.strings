@@ -218,3 +218,10 @@
 "Terminus" = "Terminus";
 "Mes arrêts" = "My stops";
 "Suivre ce départ" = "Track this departure";
+
+// MARK: - Live departures
+"Annulé" = "Canceled";
+"En direct" = "Live";
+"Retard %lld min" = "%lld min late";
+"Avance %lld min" = "%lld min early";
+"À l'heure" = "On time";

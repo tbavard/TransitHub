@@ -183,7 +183,7 @@ struct FavoritesView: View {
                     NavigationLink(value: AppDestination.stop(stop)) {
                         TransitStopCard(
                             stop: stop,
-                            schedule: schedulesByStop[stop.id] ?? [],
+                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
                             userLocation: appVM.userLocation,
                             isFavorite: appVM.isFavorite(stop),
                             isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil
@@ -208,7 +208,7 @@ struct FavoritesView: View {
                     } preview: {
                         TransitStopCard(
                             stop: stop,
-                            schedule: schedulesByStop[stop.id] ?? [],
+                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
                             userLocation: appVM.userLocation,
                             isFavorite: appVM.isFavorite(stop),
                             isLoading: false

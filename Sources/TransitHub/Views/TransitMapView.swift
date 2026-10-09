@@ -168,7 +168,7 @@ struct TransitMapView: View {
             if let stop = previewStop {
                 MapStopPreviewCard(
                     stop: stop,
-                    schedule: previewSchedule,
+                    schedule: appVM.withRealtime(previewSchedule, at: stop),
                     userLocation: locationService.location,
                     isFavorite: appVM.isFavorite(stop),
                     isLoading: isLoadingPreview

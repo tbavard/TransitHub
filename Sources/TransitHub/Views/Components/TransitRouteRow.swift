@@ -22,6 +22,9 @@ struct TransitRouteRow: View {
             Spacer(minLength: Spacing.s)
 
             HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
+                if group.isLive {
+                    LiveIndicator()
+                }
                 let mins = Array(group.minutes.prefix(3))
                 ForEach(mins.indices, id: \.self) { i in
                     CountdownLabel(minutes: mins[i], emphasised: i == 0)

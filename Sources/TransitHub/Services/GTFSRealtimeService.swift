@@ -272,16 +272,19 @@ final class GTFSRealtimeService {
                     arrivalTime:    stu.hasArrival   && stu.arrival.hasTime
                                         ? Date(timeIntervalSince1970: Double(stu.arrival.time))  : nil,
                     departureTime:  stu.hasDeparture && stu.departure.hasTime
-                                        ? Date(timeIntervalSince1970: Double(stu.departure.time)) : nil
+                                        ? Date(timeIntervalSince1970: Double(stu.departure.time)) : nil,
+                    isSkipped:      stu.scheduleRelationship == .skipped
                 )
             }
             let vehicleId = tu.hasVehicle ? tu.vehicle.id : ""
+            let relationship = tu.hasTrip ? tu.trip.scheduleRelationship : .scheduled
             return TripUpdate(
                 id:              tripId,
                 routeId:         routeId,
                 vehicleId:       vehicleId,
                 stopTimeUpdates: updates,
-                timestamp:       tu.hasTimestamp ? Date(timeIntervalSince1970: Double(tu.timestamp)) : Date()
+                timestamp:       tu.hasTimestamp ? Date(timeIntervalSince1970: Double(tu.timestamp)) : Date(),
+                isCanceled:      relationship == .canceled || relationship == .deleted
             )
         }
     }

@@ -68,6 +68,9 @@ final class AppViewModel: ObservableObject {
     @Published var serviceAlerts:    [ServiceAlert]    = []
     @Published var routeDelays:      [RouteDelay]      = []
     @Published var vehiclePositions: [VehiclePosition] = []
+    /// Live trip updates per provider, keyed by trip_id — merged into stop
+    /// schedules by `withRealtime(_:at:)`.
+    @Published var tripUpdatesByProvider: [String: [String: TripUpdate]] = [:]
     @Published var isRefreshingRealtime = false
     @Published var realtimeError: Error?
 
@@ -145,6 +148,14 @@ final class AppViewModel: ObservableObject {
             let services = try db.fetchActiveServices()
             return try db.fetchSchedule(stopId: stopId, services: services)
         }.value
+    }
+
+    /// Overlays the latest live trip updates on a stop's static schedule.
+    /// Cheap (dictionary lookups), so views call it at render time and pick
+    /// up each 30 s realtime refresh without re-querying SQLite.
+    func withRealtime(_ entries: [ScheduleEntry], at stop: Stop) -> [ScheduleEntry] {
+        RealtimeScheduleMerger.apply(tripUpdatesByProvider[stop.providerId] ?? [:],
+                                     to: entries, stopId: stop.id)
     }
 
     // MARK: - Trip planning
@@ -237,6 +248,7 @@ final class AppViewModel: ObservableObject {
 
         var mergedVehicles: [VehiclePosition] = []
         var mergedDelays:   [RouteDelay]      = []
+        var mergedTrips:    [String: [String: TripUpdate]] = [:]
         var mergedAlerts:   [ServiceAlert]    = []
         var firstError: Error? = nil
 
@@ -255,6 +267,8 @@ final class AppViewModel: ObservableObject {
             do {
                 let updates = try await updatesTask
                 mergedDelays += await service.computeRouteDelays(from: updates)
+                mergedTrips[provider.id] = Dictionary(updates.map { ($0.id, $0) },
+                                                      uniquingKeysWith: { first, _ in first })
             } catch {
                 firstError = firstError ?? error
             }
@@ -266,6 +280,7 @@ final class AppViewModel: ObservableObject {
         }
 
         vehiclePositions = mergedVehicles
+        tripUpdatesByProvider = mergedTrips
         routeDelays      = RealtimeAggregator.sortedDelays(mergedDelays)
         serviceAlerts    = RealtimeAggregator.sortedAlerts(mergedAlerts)
         realtimeError    = firstError
@@ -279,6 +294,7 @@ final class AppViewModel: ObservableObject {
     func updateWidgetSnapshots() {
         guard !favoriteStops.isEmpty else { return }
         let stops = Array(favoriteStops.prefix(3))
+        let liveTrips = tripUpdatesByProvider
         Task.detached(priority: .background) {
             let byProvider = Dictionary(grouping: stops, by: \.providerId)
             var snapshots: [DepartureSnapshot] = []
@@ -289,8 +305,12 @@ final class AppViewModel: ObservableObject {
                 defer { db.close() }
                 let services = (try? db.fetchActiveServices()) ?? ActiveServices(today: [], yesterday: [])
                 for stop in provStops {
-                    let entries = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
-                    let snapshotEntries = entries.filter { !$0.hasDepartedToday }.prefix(6).map { e in
+                    let scheduled = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
+                    let entries = RealtimeScheduleMerger.apply(liveTrips[pid] ?? [:], to: scheduled, stopId: stop.id)
+                    let snapshotEntries = entries
+                        .filter { !$0.hasDepartedToday && !$0.isCanceled }
+                        .sorted { $0.minutesUntilDeparture < $1.minutesUntilDeparture }
+                        .prefix(6).map { e in
                         DepartureSnapshot.SnapshotEntry(
                             id:             UUID().uuidString,
                             minutesFromNow: e.minutesUntilDeparture,

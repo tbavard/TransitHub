@@ -26,6 +26,8 @@ struct TripUpdate: Identifiable {
     let vehicleId: String
     let stopTimeUpdates: [StopTimeUpdate]
     let timestamp: Date
+    /// Trip CANCELED / DELETED in the feed.
+    var isCanceled: Bool = false
 }
 
 struct StopTimeUpdate {
@@ -35,6 +37,8 @@ struct StopTimeUpdate {
     let departureDelay: Int?  // seconds
     let arrivalTime: Date?
     let departureTime: Date?
+    /// Stop SKIPPED by this trip (the vehicle will not serve it).
+    var isSkipped: Bool = false
 }
 
 // MARK: - Service Alert (from État du Service REST API)

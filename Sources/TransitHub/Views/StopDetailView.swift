@@ -25,7 +25,7 @@ struct StopDetailView: View {
     }
 
     private var displayedSchedule: [ScheduleEntry] {
-        schedule.filtered(for: activeContext)
+        appVM.withRealtime(schedule, at: stop).filtered(for: activeContext)
     }
 
     /// True when this stop is served by lines other than the context route —
@@ -58,13 +58,14 @@ struct StopDetailView: View {
     }
 
     private func nextEntry(for entries: [ScheduleEntry]) -> ScheduleEntry? {
-        entries.first { !$0.hasDepartedToday } ?? entries.first
+        entries.first { !$0.hasDepartedToday && !$0.isCanceled } ?? entries.first
     }
 
     /// The two departures right after `next`, for the "then in…" chips.
     private func following(_ next: ScheduleEntry, in entries: [ScheduleEntry]) -> [ScheduleEntry] {
         guard !next.hasDepartedToday else { return [] }
-        return Array(entries.drop(while: { $0.id != next.id }).dropFirst().prefix(2))
+        return Array(entries.drop(while: { $0.id != next.id }).dropFirst()
+            .filter { !$0.isCanceled }.prefix(2))
     }
 
     // Walking information: "350 m · 4 min"
@@ -454,19 +455,46 @@ struct NextDepartureHero: View {
     private var isPast: Bool { entry.hasDepartedToday }
 
     private var tint: Color {
-        isPast ? Color(.systemGray) : (Color(hex: entry.routeColor) ?? Theme.brandStart)
+        isPast || entry.isCanceled
+            ? Color(.systemGray)
+            : (Color(hex: entry.routeColor) ?? Theme.brandStart)
     }
 
     private var countdownText: String {
-        if isPast       { return entry.displayTime }
-        if minutes == 0 { return String(localized: "countdown.imminent") }
-        if minutes < 60 { return "\(minutes) min" }
-        return entry.displayTime
+        if entry.isCanceled { return String(localized: "Annulé") }
+        if isPast           { return entry.displayTime }
+        if minutes == 0     { return String(localized: "countdown.imminent") }
+        if minutes < 60     { return "\(minutes) min" }
+        return entry.predictedDisplayTime
     }
 
     private static func shortCountdown(_ e: ScheduleEntry) -> String {
         let m = e.minutesUntilDeparture
-        return m < 60 ? "\(m) min" : e.displayTime
+        return m < 60 ? "\(m) min" : e.predictedDisplayTime
+    }
+
+    /// "En direct · +3 min" style badge; nothing for schedule-only data.
+    @ViewBuilder
+    private func realtimeBadge(fg: Color) -> some View {
+        if entry.delaySeconds != nil {
+            let m = entry.delayMinutes
+            HStack(spacing: Spacing.xs) {
+                LiveIndicator(color: fg)
+                Group {
+                    if m >= 1 {
+                        Text("Retard \(m) min")
+                    } else if m <= -1 {
+                        Text("Avance \(-m) min")
+                    } else {
+                        Text("À l'heure")
+                    }
+                }
+                .font(Typography.badge)
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xxs)
+            .background(fg.opacity(0.18), in: Capsule())
+        }
     }
 
     var body: some View {
@@ -474,9 +502,12 @@ struct NextDepartureHero: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    Text(isPast ? "Plus de départ aujourd'hui" : "Prochain départ")
-                        .font(Typography.caption.weight(.semibold))
-                        .opacity(0.85)
+                    HStack(spacing: Spacing.s) {
+                        Text(isPast ? "Plus de départ aujourd'hui" : "Prochain départ")
+                            .font(Typography.caption.weight(.semibold))
+                            .opacity(0.85)
+                        realtimeBadge(fg: fg)
+                    }
                     Text(countdownText)
                         .font(.system(.largeTitle, design: .rounded).weight(.heavy))
                         .monospacedDigit()
@@ -486,10 +517,19 @@ struct NextDepartureHero: View {
                 }
                 Spacer(minLength: Spacing.sm)
                 VStack(alignment: .trailing, spacing: Spacing.xxs) {
-                    if !isPast && minutes < 60 {
-                        Text(entry.displayTime)
+                    if !isPast && !entry.isCanceled && minutes < 60 {
+                        Text(entry.predictedDisplayTime)
                             .font(.title3.weight(.bold))
                             .monospacedDigit()
+                    }
+                    // Timetable time, struck through when the live
+                    // prediction differs from it.
+                    if entry.delayMinutes != 0 || entry.isCanceled {
+                        Text(entry.displayTime)
+                            .font(Typography.caption.weight(.medium))
+                            .monospacedDigit()
+                            .strikethrough()
+                            .opacity(0.75)
                     }
                     Label(entry.headsign, systemImage: "arrow.right")
                         .font(Typography.caption.weight(.medium))
@@ -627,13 +667,24 @@ struct MinuteChip: View {
         Text(minuteStr)
             .font(.system(isNext ? .body : .callout, design: .monospaced)
                 .weight(isNext ? .bold : .regular))
+            .strikethrough(entry.isCanceled)
             .foregroundStyle(
                 isNext ? tint.readableForeground :
-                entry.hasDepartedToday ? Color(.tertiaryLabel) : .primary
+                entry.hasDepartedToday || entry.isCanceled ? Color(.tertiaryLabel) : .primary
             )
             .padding(.horizontal, isNext ? Spacing.m : 7)
             .padding(.vertical,   isNext ? Spacing.s : 3)
             .background(background, in: RoundedRectangle(cornerRadius: isNext ? Radius.sm : 5))
+            // Timetable grid keeps scheduled minutes; a dot flags runs the
+            // live feed reports as late.
+            .overlay(alignment: .topTrailing) {
+                if entry.delayMinutes >= 2 && !entry.hasDepartedToday {
+                    Circle()
+                        .fill(Theme.soon)
+                        .frame(width: 7, height: 7)
+                        .offset(x: 2, y: -2)
+                }
+            }
             .shadow(color: isNext ? tint.opacity(0.35) : .clear, radius: 4, x: 0, y: 2)
             .scaleEffect(isNext ? 1.05 : 1.0)
             .animation(.spring(response: 0.3), value: isNext)

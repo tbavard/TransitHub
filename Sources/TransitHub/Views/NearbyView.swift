@@ -58,7 +58,7 @@ struct NearbyView: View {
                     NavigationLink(value: AppDestination.stop(stop)) {
                         TransitStopCard(
                             stop: stop,
-                            schedule: schedulesByStop[stop.id] ?? [],
+                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
                             userLocation: locationService.location,
                             isFavorite: appVM.isFavorite(stop),
                             isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,

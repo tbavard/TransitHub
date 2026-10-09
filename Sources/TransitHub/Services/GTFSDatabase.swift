@@ -326,7 +326,7 @@ final class GTFSDatabase {
         let sql = """
             SELECT st.departure_time, st.trip_id, t.trip_headsign,
                    t.route_id, r.route_short_name, COALESCE(r.route_color,''),
-                   COALESCE(t.direction_id, 0)
+                   COALESCE(t.direction_id, 0), st.stop_sequence
             FROM stop_times st
             JOIN trips  t ON st.trip_id  = t.trip_id
             JOIN routes r ON t.route_id  = r.route_id
@@ -351,7 +351,8 @@ final class GTFSDatabase {
                 routeId:        col(stmt, 3),
                 routeShortName: col(stmt, 4),
                 routeColor:     col(stmt, 5),
-                directionId:    Int(sqlite3_column_int(stmt, 6))
+                directionId:    Int(sqlite3_column_int(stmt, 6)),
+                stopSequence:   Int(sqlite3_column_int(stmt, 7))
             ))
         }
         return result

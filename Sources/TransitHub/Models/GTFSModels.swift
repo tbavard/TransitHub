@@ -139,6 +139,25 @@ struct ScheduleEntry: Identifiable {
     /// GTFS trips.direction_id. Optional so callers that don't know it
     /// (tests, legacy paths) can omit it.
     var directionId: Int? = nil
+    /// stop_times.stop_sequence of this departure; lets realtime updates of
+    /// earlier stops propagate their delay here.
+    var stopSequence: Int? = nil
+    /// Live information merged from GTFS-RT trip updates (nil = schedule only).
+    var realtime: RealtimeStatus? = nil
+
+    /// True when the feed says this departure won't happen (trip canceled or
+    /// this stop skipped).
+    var isCanceled: Bool { realtime == .canceled || realtime == .skipped }
+
+    var delaySeconds: Int? {
+        if case .delay(let s) = realtime { return s }
+        return nil
+    }
+
+    /// Live delay rounded to the minute (negative = early, 0 = on time / unknown).
+    var delayMinutes: Int {
+        Int((Double(delaySeconds ?? 0) / 60).rounded())
+    }
 
     /// Returns "HH:MM" with 24h wrap for display
     var displayTime: String {
@@ -159,10 +178,16 @@ struct ScheduleEntry: Identifiable {
     /// running past midnight) land after 1440, i.e. tonight. Yesterday's
     /// overnight trips are already shifted onto today's clock by
     /// `GTFSDatabase.fetchSchedule`, so no early-morning special case is needed.
-    private var departureMinutes: Int? {
+    private var scheduledMinutes: Int? {
         let parts = departureTime.split(separator: ":").compactMap { Int($0) }
         guard parts.count >= 2 else { return nil }
         return parts[0] * 60 + parts[1]
+    }
+
+    /// Scheduled time shifted by the live delay — what countdowns and
+    /// "departed" checks use (a bus due 08:00 running +5 hasn't left at 08:02).
+    private var effectiveMinutes: Int? {
+        scheduledMinutes.map { $0 + delayMinutes }
     }
 
     private static func currentMinutes() -> Int {
@@ -173,17 +198,33 @@ struct ScheduleEntry: Identifiable {
 
     /// True when the departure has already passed today.
     var hasDepartedToday: Bool {
-        guard let dep = departureMinutes else { return true }
+        guard let dep = effectiveMinutes else { return true }
         return dep < Self.currentMinutes()
     }
 
     /// Minutes until this departure from now. Already-departed entries are
     /// treated as tomorrow's so callers can still sort them last.
     var minutesUntilDeparture: Int {
-        guard let dep = departureMinutes else { return Int.max }
+        guard let dep = effectiveMinutes else { return Int.max }
         let cur = Self.currentMinutes()
         return dep >= cur ? dep - cur : 1440 - cur + dep
     }
+
+    /// Predicted "HH:MM" (scheduled time + live delay).
+    var predictedDisplayTime: String {
+        guard let dep = effectiveMinutes else { return displayTime }
+        let wrapped = ((dep % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", wrapped / 60, wrapped % 60)
+    }
+}
+
+// MARK: - Realtime status
+
+enum RealtimeStatus: Equatable {
+    /// Live prediction available; seconds of delay (0 = on time, < 0 = early).
+    case delay(seconds: Int)
+    case canceled
+    case skipped
 }
 
 // MARK: - Route departure summary
@@ -201,8 +242,8 @@ extension Array where Element == ScheduleEntry {
         let groups = Dictionary(grouping: self) { $0.routeShortName }
         return groups.compactMap { shortName, entries -> RouteNext? in
             guard let entry = entries
-                .sorted(by: { $0.departureTime < $1.departureTime })
-                .first(where: { !$0.hasDepartedToday })
+                .filter({ !$0.hasDepartedToday && !$0.isCanceled })
+                .min(by: { $0.minutesUntilDeparture < $1.minutesUntilDeparture })
             else { return nil }
             return RouteNext(id: shortName, shortName: shortName,
                              color: entry.routeColor,
@@ -222,6 +263,8 @@ struct RouteDeparturesGroup: Identifiable {
     let routeColor: String    // RRGGBB hex
     let headsign: String
     let minutes: [Int]        // sorted ascending, already filtered to upcoming
+    /// The soonest departure carries a live (GTFS-RT) prediction.
+    var isLive: Bool = false
 }
 
 extension Array where Element == ScheduleEntry {
@@ -230,9 +273,11 @@ extension Array where Element == ScheduleEntry {
     func groupedByRouteAndHeadsign(limit: Int = 3) -> [RouteDeparturesGroup] {
         let groups = Dictionary(grouping: self) { "\($0.routeShortName)|\($0.headsign)" }
         return groups.compactMap { key, entries -> RouteDeparturesGroup? in
+            // Sorted by predicted time: with live delays, a late earlier bus
+            // can arrive after an on-time later one.
             let upcoming = entries
-                .filter { !$0.hasDepartedToday }
-                .sorted { $0.departureTime < $1.departureTime }
+                .filter { !$0.hasDepartedToday && !$0.isCanceled }
+                .sorted { $0.minutesUntilDeparture < $1.minutesUntilDeparture }
             guard let first = upcoming.first else { return nil }
             let mins = upcoming.prefix(limit).map(\.minutesUntilDeparture)
             return RouteDeparturesGroup(
@@ -240,7 +285,8 @@ extension Array where Element == ScheduleEntry {
                 routeShortName: first.routeShortName,
                 routeColor: first.routeColor,
                 headsign: first.headsign,
-                minutes: mins
+                minutes: mins,
+                isLive: first.delaySeconds != nil
             )
         }
         .sorted {
