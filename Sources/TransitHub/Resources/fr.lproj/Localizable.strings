@@ -1,0 +1,203 @@
+// MARK: - Tab Bar
+"Tableau de bord" = "Tableau de bord";
+"À proximité" = "À proximité";
+"Lignes" = "Lignes";
+"Avis" = "Avis";
+// MARK: - FavoritesView / Dashboard
+"Mes favoris" = "Mes favoris";
+"Aucun favori" = "Aucun favori";
+"Appuyez sur ★ dans la fiche d'un arrêt." = "Appuyez sur ★ dans la fiche d'un arrêt.";
+"Avis actifs" = "Avis actifs";
+"+ %lld autre(s) avis" = "+ %lld autre(s) avis";
+"Retirer des favoris" = "Retirer des favoris";
+"Aucun service actif" = "Aucun service actif";
+"Aucun départ prochain" = "Aucun départ prochain";
+
+// Computed strings — greeting
+"greeting.morning" = "Bonjour";
+"greeting.afternoon" = "Bon après-midi";
+"greeting.evening" = "Bonsoir";
+
+// Computed strings — network status
+"network.normal" = "Réseau normal";
+"network.disruptions" = "%d perturbation(s)";
+"network.alerts" = "%d avis actifs";
+
+// MARK: - StopDetailView
+"Horaires" = "Horaires";
+"Station de métro" = "Station de métro";
+"Arrêt d'autobus" = "Arrêt d'autobus";
+"Erreur" = "Erreur";
+"Réessayer" = "Réessayer";
+"Aucun départ aujourd'hui" = "Aucun départ aujourd'hui";
+"Aucun service actif pour cet arrêt." = "Aucun service actif pour cet arrêt.";
+"Prochain départ" = "Prochain départ";
+
+// Computed strings — countdown
+"countdown.imminent" = "À l'approche";
+"countdown.minutes" = "Dans %d min";
+
+// MARK: - RoutesView
+"Métro" = "Métro";
+"Bus" = "Bus";
+"Rechercher une ligne" = "Rechercher une ligne";
+"Aucun arrêt trouvé" = "Aucun arrêt trouvé";
+"Essayez l'autre direction." = "Essayez l'autre direction.";
+"Arrêts" = "Arrêts";
+"Direction" = "Direction";
+"Avis de service (%lld)" = "Avis de service (%lld)";
+"Ligne %@" = "Ligne %@";
+
+// MARK: - NearbyView
+"Localisation en cours…" = "Localisation en cours…";
+"Localisation désactivée" = "Localisation désactivée";
+"Autorisez l'accès à votre position pour voir les arrêts à proximité." = "Autorisez l'accès à votre position pour voir les arrêts à proximité.";
+"Autoriser la localisation" = "Autoriser la localisation";
+"Aucun service" = "Aucun service";
+
+// MARK: - Search (embedded in dashboard)
+"Ligne, arrêt, numéro…" = "Ligne, arrêt, numéro…";
+"Aucun résultat" = "Aucun résultat";
+"Essayez un autre nom ou numéro." = "Essayez un autre nom ou numéro.";
+
+// MARK: - AlertsView
+"Avis & Retards" = "Avis & Retards";
+"Chargement…" = "Chargement…";
+"Aucun avis actif" = "Aucun avis actif";
+"Le réseau fonctionne normalement." = "Le réseau fonctionne normalement.";
+"Avis de service" = "Avis de service";
+"Retards en temps réel" = "Retards en temps réel";
+"Clé API requise" = "Clé API requise";
+"Accédez aux avis et retards en temps réel en enregistrant votre clé dans les réglages." = "Accédez aux avis et retards en temps réel en enregistrant votre clé dans les réglages.";
+"Réglages" = "Réglages";
+"Tous" = "Tous";
+"%lld trajets" = "%lld trajets";
+
+// Computed strings — network status banner
+"alerts.critical_count" = "%d perturbation(s) critique(s)";
+"alerts.alert_count" = "%d avis";
+"alerts.delay_count" = "%d retard(s)";
+
+// MARK: - SettingsView
+"Aucun fournisseur configuré" = "Aucun fournisseur configuré";
+"Ajoutez un premier réseau de transport depuis le catalogue MobilityDatabase." = "Ajoutez un premier réseau de transport depuis le catalogue MobilityDatabase.";
+"Fournisseurs de transport" = "Fournisseurs de transport";
+"Les flux sont fournis par MobilityDatabase.org." = "Les flux sont fournis par MobilityDatabase.org.";
+"À propos" = "À propos";
+"Version" = "Version";
+"Rafraîchissement GTFS" = "Rafraîchissement GTFS";
+"À expiration du flux" = "À expiration du flux";
+"Ajouter un fournisseur" = "Ajouter un fournisseur";
+"Identité" = "Identité";
+"Nom abrégé" = "Nom abrégé";
+"ex. STM" = "ex. STM";
+"Nom complet" = "Nom complet";
+"Nom du fournisseur" = "Nom du fournisseur";
+"Enregistrer" = "Enregistrer";
+"Le nom abrégé s'affiche dans la pastille colorée et les filtres." = "Le nom abrégé s'affiche dans la pastille colorée et les filtres.";
+"Données en temps réel" = "Données en temps réel";
+"Clé API %@" = "Clé API %@";
+"Tester" = "Tester";
+"Ce flux requiert un paramètre « %@ »." = "Ce flux requiert un paramètre « %@ ».";
+"Ce flux requiert une clé d'authentification." = "Ce flux requiert une clé d'authentification.";
+"Clé enregistrée" = "Clé enregistrée";
+"Test en cours…" = "Test en cours…";
+"Connexion réussie" = "Connexion réussie";
+"Connexion réussie — %lld véhicules actifs" = "Connexion réussie — %lld véhicules actifs";
+"Connexion échouée" = "Connexion échouée";
+"Données GTFS" = "Données GTFS";
+"Base de données" = "Base de données";
+"Dernière mise à jour" = "Dernière mise à jour";
+"Forcer la mise à jour" = "Forcer la mise à jour";
+"Effacer et réimporter" = "Effacer et réimporter";
+"Détails" = "Détails";
+"Identifiant" = "Identifiant";
+"Ville" = "Ville";
+"Pays" = "Pays";
+"Temps réel" = "Temps réel";
+"Oui" = "Oui";
+"Non" = "Non";
+"Retirer ce fournisseur" = "Retirer ce fournisseur";
+"Effacer les données locales de %@ et les retélécharger ?" = "Effacer les données locales de %@ et les retélécharger ?";
+"Retirer %@ ?" = "Retirer %@ ?";
+"La base GTFS locale sera supprimée. Vous pourrez réajouter le fournisseur plus tard." = "La base GTFS locale sera supprimée. Vous pourrez réajouter le fournisseur plus tard.";
+"Retirer" = "Retirer";
+"Annuler" = "Annuler";
+
+// MARK: - AddProviderView
+"Ajouter un fournisseur" = "Ajouter un fournisseur";
+"Fermer" = "Fermer";
+"Ville, agence, pays…" = "Ville, agence, pays…";
+"Catalogue indisponible" = "Catalogue indisponible";
+"Le jeton MobilityDatabase n'est pas configuré dans l'application." = "Le jeton MobilityDatabase n'est pas configuré dans l'application.";
+"Recherche…" = "Recherche…";
+"Recherchez un réseau de transport" = "Recherchez un réseau de transport";
+"Tapez un nom de ville, d'agence ou un code pays (ex: Paris, RATP, CA) pour trouver des flux GTFS publics." = "Tapez un nom de ville, d'agence ou un code pays (ex: Paris, RATP, CA) pour trouver des flux GTFS publics.";
+"Ajout en cours…" = "Ajout en cours…";
+"Ajouter ce fournisseur ?" = "Ajouter ce fournisseur ?";
+"Ajouter %@" = "Ajouter %@";
+"Officiel" = "Officiel";
+"L'application téléchargera le flux GTFS lors de la prochaine initialisation." = "L'application téléchargera le flux GTFS lors de la prochaine initialisation.";
+"%@ — téléchargement du flux GTFS lors de la prochaine initialisation." = "%@ — téléchargement du flux GTFS lors de la prochaine initialisation.";
+"Ce flux n'a pas encore de fichier GTFS téléchargeable." = "Ce flux n'a pas encore de fichier GTFS téléchargeable.";
+
+// MARK: - NoProvidersView
+"Ajoutez un réseau de transport pour voir ses lignes, ses arrêts et ses horaires." = "Ajoutez un réseau de transport pour voir ses lignes, ses arrêts et ses horaires.";
+"Ouvrir les réglages" = "Ouvrir les réglages";
+
+// MARK: - AppViewModel — loading messages
+"loading.initializing" = "Initialisation…";
+"loading.ready" = "Prêt";
+"loading.add_provider" = "Ajoutez un fournisseur dans Réglages";
+"loading.lines" = "[%@] Chargement des lignes…";
+
+// MARK: - Go mode / notifications
+"notif.leave_now.title" = "Il est temps de partir";
+"notif.leave_now.body" = "Partez maintenant (%d min à pied) pour prendre le %@ à %@.";
+"notif.approaching.title" = "Le %@ arrive bientôt";
+"notif.approaching.body" = "Dans %d min vers %@ à %@.";
+"live.imminent" = "Départ imminent";
+"live.one_minute" = "Dans 1 minute";
+"live.n_minutes" = "Dans %d minutes";
+"live.leave_now" = "Partir maintenant (%d min à pied)";
+"live.departed" = "Départ passé";
+
+"Partir" = "Partir";
+"Arrêter le suivi" = "Arrêter le suivi";
+"Choisir un lieu" = "Choisir un lieu";
+"Rechercher un arrêt" = "Rechercher un arrêt";
+"Ma position" = "Ma position";
+"Favoris" = "Favoris";
+"Résultats" = "Résultats";
+"De" = "De";
+"À" = "À";
+"Partir maintenant" = "Partir maintenant";
+"Partir à…" = "Partir à…";
+"Heure de départ" = "Heure de départ";
+"Recherche…" = "Recherche…";
+"Trouver un itinéraire" = "Trouver un itinéraire";
+"Itinéraire" = "Itinéraire";
+"%lld itinéraire(s)" = "%lld itinéraire(s)";
+"Durée : %lld min" = "Durée : %lld min";
+
+// MARK: - PlanView / Trip planner
+"plan.my_location" = "Ma position";
+"plan.error.no_origin" = "Choisissez un point de départ.";
+"plan.error.no_destination" = "Choisissez une destination.";
+"plan.error.same_endpoint" = "Le départ et la destination sont identiques.";
+"plan.error.no_location" = "Localisation indisponible.";
+"plan.error.no_route" = "Aucun itinéraire direct trouvé.";
+
+// MARK: - GTFSService — progress messages
+"gtfs.downloading" = "Téléchargement des données GTFS…";
+"gtfs.extracting" = "Extraction de l'archive…";
+"gtfs.creating_db" = "Création de la base de données…";
+"gtfs.importing_routes" = "Import des lignes…";
+"gtfs.importing_stops" = "Import des arrêts…";
+"gtfs.importing_trips" = "Import des trajets…";
+"gtfs.importing_stoptimes" = "Import des horaires (cela peut prendre quelques minutes)…";
+"gtfs.importing_stoptimes_progress" = "Import des horaires… %d%%";
+"gtfs.ready" = "Données prêtes !";
+"gtfs.error.invalid_archive" = "Archive GTFS invalide: stops.txt introuvable";
+"gtfs.error.empty_table" = "Import incomplet — table %@ vide";
+"gtfs.error.no_calendar" = "Import incomplet — ni calendar ni calendar_dates";
