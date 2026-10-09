@@ -433,6 +433,7 @@ private struct StopActionLabel: View {
         VStack(spacing: Spacing.xs) {
             Image(systemName: icon)
                 .font(.subheadline.weight(.semibold))
+                .symbolEffect(.bounce, value: icon)   // e.g. star filling in
             Text(label)
                 .font(.caption2.weight(.semibold))
         }
@@ -497,6 +498,7 @@ struct NextDepartureHero: View {
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xxs)
             .background(fg.opacity(0.18), in: Capsule())
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
         }
     }
 
@@ -585,6 +587,7 @@ struct NextDepartureHero: View {
         .background(tint.livelyGradient, in: RoundedRectangle(cornerRadius: Radius.xl))
         .shadow(color: tint.opacity(0.35), radius: 10, x: 0, y: 6)
         .animation(.snappy, value: countdownText)
+        .animation(.snappy, value: entry.realtime)
         .imminentFeedback(!isPast && !entry.isCanceled && minutes == 0)
     }
 }

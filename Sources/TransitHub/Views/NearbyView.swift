@@ -59,6 +59,12 @@ struct NearbyView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    // Same gentle fade/scale as the dashboard cards.
+                    .scrollTransition { content, phase in
+                        content
+                            .opacity(phase.isIdentity ? 1 : 0.4)
+                            .scaleEffect(phase.isIdentity ? 1 : 0.96)
+                    }
                     .contextMenu {
                         Button {
                             withAnimation { appVM.toggleFavorite(stop) }

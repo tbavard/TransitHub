@@ -217,6 +217,8 @@ struct RouteDetailView: View {
             .padding(.horizontal, Spacing.xl)
             .padding(.top, Spacing.md)
             .padding(.bottom, Spacing.xxxl)
+            // Cross-fade between loading, empty and the new direction's stops.
+            .animation(.easeInOut(duration: 0.2), value: isLoading)
         }
         .background(Theme.screenBackground)
         .navigationTitle("Ligne \(route.shortName)")

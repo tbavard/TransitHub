@@ -14,6 +14,9 @@ struct CountdownLabel: View {
             // Read as "in 4 minutes" rather than "4", "min".
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(A11y.countdown(minutes))
+            // Digits roll instead of snapping when the minute ticks over.
+            .contentTransition(.numericText(countsDown: true))
+            .animation(.snappy, value: minutes)
     }
 
     @ViewBuilder
