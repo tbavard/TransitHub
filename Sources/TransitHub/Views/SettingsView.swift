@@ -405,9 +405,9 @@ struct ProviderDetailView: View {
 
     private var authHint: String {
         if let name = provider.rtApiKeyParamName {
-            return "Ce flux requiert un paramètre « \(name) »."
+            return String(localized: "Ce flux requiert un paramètre « \(name) ».")
         }
-        return "Ce flux requiert une clé d'authentification."
+        return String(localized: "Ce flux requiert une clé d'authentification.")
     }
 
     private func saveRTConfig() {
@@ -452,8 +452,8 @@ struct APIKeyStatusBadge: View {
             case .success(let count):
                 Label(
                     count == 0
-                        ? "Connexion réussie"
-                        : "Connexion réussie — \(count) véhicules actifs",
+                        ? String(localized: "Connexion réussie")
+                        : String(localized: "Connexion réussie — \(count) véhicules actifs"),
                     systemImage: "checkmark.circle.fill"
                 )
                 .foregroundStyle(Theme.statusOK)

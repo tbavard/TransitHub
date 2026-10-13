@@ -163,8 +163,8 @@ struct AddProviderView: View {
     private func descriptionLine(for r: MDBFeedSearchResult) -> String {
         let loc = r.primaryLocation
         let place = [loc?.municipality, loc?.country_code].compactMap { $0 }.joined(separator: ", ")
-        if place.isEmpty { return "L'application téléchargera le flux GTFS lors de la prochaine initialisation." }
-        return "\(place) — téléchargement du flux GTFS lors de la prochaine initialisation."
+        if place.isEmpty { return String(localized: "L'application téléchargera le flux GTFS lors de la prochaine initialisation.") }
+        return String(localized: "\(place) — téléchargement du flux GTFS lors de la prochaine initialisation.")
     }
 
     // MARK: - Search
@@ -210,7 +210,7 @@ struct AddProviderView: View {
             let feed = try await svc.fetchGtfsFeed(id: result.id)
             let rt   = (try? await svc.fetchRelatedRT(gtfsId: result.id)) ?? []
             guard let provider = svc.buildProvider(from: feed, rt: rt) else {
-                errorMessage = "Ce flux n'a pas encore de fichier GTFS téléchargeable."
+                errorMessage = String(localized: "Ce flux n'a pas encore de fichier GTFS téléchargeable.")
                 return
             }
             providersStore.add(provider)

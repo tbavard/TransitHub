@@ -128,7 +128,6 @@
 "Annuler" = "Cancel";
 
 // MARK: - AddProviderView
-"Ajouter un fournisseur" = "Add a provider";
 "Fermer" = "Close";
 "Ville, agence, pays…" = "City, agency, country…";
 "Catalogue indisponible" = "Catalog unavailable";
@@ -179,7 +178,6 @@
 "Partir maintenant" = "Leave now";
 "Partir à…" = "Leave at…";
 "Heure de départ" = "Departure time";
-"Recherche…" = "Searching…";
 "Trouver un itinéraire" = "Find a route";
 "Itinéraire" = "Directions";
 "%lld itinéraire(s)" = "%lld route(s)";
@@ -277,3 +275,36 @@
 "alerts.section.info" = "Information";
 "Récentes" = "Recent";
 "Ajouter aux favoris" = "Add to favorites";
+
+// MARK: - Localization audit (previously untranslated)
+"Voir tous les avis" = "See all alerts";
+"Aucun arrêt" = "No stops";
+"Ajoutez un favori ou activez la localisation pour voir les arrêts à proximité." = "Add a favorite or enable location to see nearby stops.";
+"Ajouter un réseau" = "Add a network";
+"Activer le temps réel" = "Enable real-time";
+"Positions des véhicules" = "Vehicle positions";
+"Mises à jour des trajets" = "Trip updates";
+"Clé API (paramètre URL)" = "API key (URL parameter)";
+"Clé API (en-tête HTTP)" = "API key (HTTP header)";
+"Nom du paramètre (ex. apikey)" = "Parameter name (e.g. apikey)";
+"Impossible de charger les données" = "Unable to load data";
+"Zoomez pour\nvoir les arrêts" = "Zoom in\nto see stops";
+"Voir tous les horaires" = "See full schedule";
+"+ %lld autre(s) ligne(s)" = "+ %lld more line(s)";
+"%lld/%lld trajets" = "%lld/%lld trips";
+"Cette ligne ne contient pas d'arrêts dans les données GTFS." = "This line has no stops in the GTFS data.";
+"Tramway" = "Tram";
+"Train" = "Train";
+"Traversier" = "Ferry";
+"Funiculaire" = "Funicular";
+"+1 min de retard" = "+1 min late";
+"+%lld min de retard" = "+%lld min late";
+"Aucune clé enregistrée" = "No key saved";
+"Aucun flux temps réel configuré" = "No real-time feed configured";
+"Clé invalide ou accès refusé (%@)" = "Invalid key or access denied (%@)";
+"Clé API manquante" = "Missing API key";
+"Catalogue non configuré (MobilityDBConfig.plist manquant)" = "Catalog not configured (MobilityDBConfig.plist missing)";
+"Réponse invalide : %@" = "Invalid response: %@";
+"1 arrêt" = "1 stop";
+"%lld arrêts" = "%lld stops";
+"%@ — arrêt #%@" = "%@ — stop #%@";

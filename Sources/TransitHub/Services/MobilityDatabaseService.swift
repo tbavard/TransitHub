@@ -18,9 +18,9 @@ final class MobilityDatabaseService {
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured: return "Catalogue non configuré (MobilityDBConfig.plist manquant)"
+            case .notConfigured: return String(localized: "Catalogue non configuré (MobilityDBConfig.plist manquant)")
             case .http(let code, let msg): return "HTTP \(code)" + (msg.map { " — \($0)" } ?? "")
-            case .decode(let msg): return "Réponse invalide: \(msg)"
+            case .decode(let msg): return String(localized: "Réponse invalide : \(msg)")
             }
         }
     }

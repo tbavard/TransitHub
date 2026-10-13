@@ -128,7 +128,6 @@
 "Annuler" = "Annuler";
 
 // MARK: - AddProviderView
-"Ajouter un fournisseur" = "Ajouter un fournisseur";
 "Fermer" = "Fermer";
 "Ville, agence, pays…" = "Ville, agence, pays…";
 "Catalogue indisponible" = "Catalogue indisponible";
@@ -179,7 +178,6 @@
 "Partir maintenant" = "Partir maintenant";
 "Partir à…" = "Partir à…";
 "Heure de départ" = "Heure de départ";
-"Recherche…" = "Recherche…";
 "Trouver un itinéraire" = "Trouver un itinéraire";
 "Itinéraire" = "Itinéraire";
 "%lld itinéraire(s)" = "%lld itinéraire(s)";
@@ -277,3 +275,36 @@
 "alerts.section.info" = "Informations";
 "Récentes" = "Récentes";
 "Ajouter aux favoris" = "Ajouter aux favoris";
+
+// MARK: - Localization audit (previously untranslated)
+"Voir tous les avis" = "Voir tous les avis";
+"Aucun arrêt" = "Aucun arrêt";
+"Ajoutez un favori ou activez la localisation pour voir les arrêts à proximité." = "Ajoutez un favori ou activez la localisation pour voir les arrêts à proximité.";
+"Ajouter un réseau" = "Ajouter un réseau";
+"Activer le temps réel" = "Activer le temps réel";
+"Positions des véhicules" = "Positions des véhicules";
+"Mises à jour des trajets" = "Mises à jour des trajets";
+"Clé API (paramètre URL)" = "Clé API (paramètre URL)";
+"Clé API (en-tête HTTP)" = "Clé API (en-tête HTTP)";
+"Nom du paramètre (ex. apikey)" = "Nom du paramètre (ex. apikey)";
+"Impossible de charger les données" = "Impossible de charger les données";
+"Zoomez pour\nvoir les arrêts" = "Zoomez pour\nvoir les arrêts";
+"Voir tous les horaires" = "Voir tous les horaires";
+"+ %lld autre(s) ligne(s)" = "+ %lld autre(s) ligne(s)";
+"%lld/%lld trajets" = "%lld/%lld trajets";
+"Cette ligne ne contient pas d'arrêts dans les données GTFS." = "Cette ligne ne contient pas d'arrêts dans les données GTFS.";
+"Tramway" = "Tramway";
+"Train" = "Train";
+"Traversier" = "Traversier";
+"Funiculaire" = "Funiculaire";
+"+1 min de retard" = "+1 min de retard";
+"+%lld min de retard" = "+%lld min de retard";
+"Aucune clé enregistrée" = "Aucune clé enregistrée";
+"Aucun flux temps réel configuré" = "Aucun flux temps réel configuré";
+"Clé invalide ou accès refusé (%@)" = "Clé invalide ou accès refusé (%@)";
+"Clé API manquante" = "Clé API manquante";
+"Catalogue non configuré (MobilityDBConfig.plist manquant)" = "Catalogue non configuré (MobilityDBConfig.plist manquant)";
+"Réponse invalide : %@" = "Réponse invalide : %@";
+"1 arrêt" = "1 arrêt";
+"%lld arrêts" = "%lld arrêts";
+"%@ — arrêt #%@" = "%@ — arrêt #%@";

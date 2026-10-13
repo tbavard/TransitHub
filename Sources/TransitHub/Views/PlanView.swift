@@ -403,7 +403,8 @@ struct ItineraryCard: View {
 
     private var summaryLine: String? {
         guard let t = itin.transitLegs.first else { return nil }
-        let stopsWord = t.numStops - 1 == 1 ? "arrêt" : "arrêts"
-        return "\(t.fromStop.name) → \(t.toStop.name) · \(t.numStops - 1) \(stopsWord)"
+        let count = t.numStops - 1
+        let stopsText = count == 1 ? String(localized: "1 arrêt") : String(localized: "\(count) arrêts")
+        return "\(t.fromStop.name) → \(t.toStop.name) · \(stopsText)"
     }
 }

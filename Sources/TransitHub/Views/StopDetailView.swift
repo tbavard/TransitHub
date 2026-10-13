@@ -210,7 +210,7 @@ struct StopDetailView: View {
             }
 
             ShareLink(
-                item: "\(stop.name) — arrêt #\(stop.id)",
+                item: String(localized: "\(stop.name) — arrêt #\(stop.id)"),
                 subject: Text(stop.name)
             ) {
                 StopActionLabel(icon: "square.and.arrow.up", label: "Partager", tint: Theme.brandStart)

@@ -63,12 +63,12 @@ struct Route: Identifiable, Hashable {
 
         var label: String {
             switch self {
-            case .metro:     return "Métro"
-            case .bus:       return "Bus"
-            case .tram:      return "Tramway"
-            case .rail:      return "Train"
-            case .ferry:     return "Traversier"
-            case .funicular: return "Funiculaire"
+            case .metro:     return String(localized: "Métro")
+            case .bus:       return String(localized: "Bus")
+            case .tram:      return String(localized: "Tramway")
+            case .rail:      return String(localized: "Train")
+            case .ferry:     return String(localized: "Traversier")
+            case .funicular: return String(localized: "Funiculaire")
             }
         }
     }

@@ -344,7 +344,7 @@ struct RouteAlertRow: View {
     let alert: ServiceAlert
 
     private func stopLabel(for code: String) -> String {
-        appVM.stops.first { $0.id == code }?.name ?? "Arrêt \(code)"
+        appVM.stops.first { $0.id == code }?.name ?? String(format: String(localized: "a11y.stop"), code)
     }
 
     var body: some View {

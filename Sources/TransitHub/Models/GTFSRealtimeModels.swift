@@ -135,7 +135,7 @@ struct RouteDelay: Identifiable {
 
     var delayLabel: String {
         let m = delayMinutes
-        return m == 1 ? "+1 min de retard" : "+\(m) min de retard"
+        return m == 1 ? String(localized: "+1 min de retard") : String(localized: "+\(m) min de retard")
     }
 
     /// Minor delays use the caution hue; warning/critical match alerts.
