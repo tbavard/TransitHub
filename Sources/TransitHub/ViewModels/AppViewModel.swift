@@ -63,6 +63,31 @@ final class AppViewModel: ObservableObject {
     @Published var stops:  [Stop]  = []
     @Published var todayServiceIds: [String] = []
 
+    /// First service day of each provider's feed (see `serviceNotStartedMessage`).
+    @Published var serviceStartByProvider: [String: Date] = [:]
+
+    /// "RTL schedules start on October 16." when the provider's feed only
+    /// covers a future period — explains an otherwise empty schedule.
+    /// nil once that day has come (or when unknown).
+    func serviceNotStartedMessage(for providerId: String) -> String? {
+        guard let start = serviceStartByProvider[providerId],
+              start > Calendar.current.startOfDay(for: Date())
+        else { return nil }
+        let name = providersStore.providers.first { $0.id == providerId }?.shortName ?? providerId
+        let day = start.formatted(.dateTime.day().month(.wide))
+        return String(format: String(localized: "schedule.starts_on"), name, day)
+    }
+
+    /// GTFS "YYYYMMDD" → local midnight of that day.
+    nonisolated static func parseServiceDate(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyyMMdd"
+        return f.date(from: s)
+    }
+
     // MARK: - Real-time data
 
     @Published var serviceAlerts:    [ServiceAlert]    = []
@@ -385,15 +410,16 @@ final class AppViewModel: ObservableObject {
                 }
 
                 loadingMessage = String(format: String(localized: "loading.lines"), provider.shortName)
-                let (provRoutes, provStops) = try await Task.detached(priority: .userInitiated) {
+                let (provRoutes, provStops, startDate) = try await Task.detached(priority: .userInitiated) {
                     let db = GTFSDatabase.forProviderId(pid)
                     try db.open()
                     defer { db.close() }
-                    return (try db.fetchRoutes(), try db.fetchStops())
+                    return (try db.fetchRoutes(), try db.fetchStops(), try? db.fetchFeedStartDate())
                 }.value
 
                 allRoutes += provRoutes
                 allStops  += provStops
+                serviceStartByProvider[pid] = startDate.flatMap(Self.parseServiceDate)
             }
 
             routes = allRoutes

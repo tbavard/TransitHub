@@ -308,3 +308,6 @@
 "1 arrêt" = "1 stop";
 "%lld arrêts" = "%lld stops";
 "%@ — arrêt #%@" = "%@ — stop #%@";
+
+// MARK: - Feed not started yet
+"schedule.starts_on" = "%1$@ schedules start on %2$@.";

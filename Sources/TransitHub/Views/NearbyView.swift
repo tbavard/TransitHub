@@ -55,7 +55,8 @@ struct NearbyView: View {
                             userLocation: locationService.location,
                             isFavorite: appVM.isFavorite(stop),
                             isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,
-                            maxRoutes: 4
+                            maxRoutes: 4,
+                            emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
                         )
                     }
                     .buttonStyle(.plain)

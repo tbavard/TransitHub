@@ -174,7 +174,8 @@ struct TransitMapView: View {
                     schedule: appVM.withRealtime(previewSchedule, at: stop),
                     userLocation: locationService.location,
                     isFavorite: appVM.isFavorite(stop),
-                    isLoading: isLoadingPreview
+                    isLoading: isLoadingPreview,
+                    emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
                 ) {
                     showFullSheet = true
                 } onDismiss: {
@@ -335,6 +336,12 @@ struct MapStopPreviewCard: View {
     let userLocation: CLLocation?
     let isFavorite: Bool
     let isLoading: Bool
+    var emptyNotice: String? = nil
+
+    private var emptyText: Text {
+        if schedule.isEmpty, let emptyNotice { return Text(verbatim: emptyNotice) }
+        return Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+    }
     let onOpenDetail: () -> Void
     let onDismiss: () -> Void
     let onFavoriteToggle: () -> Void
@@ -383,7 +390,7 @@ struct MapStopPreviewCard: View {
                 }
                 .redacted(reason: .placeholder)
             } else if groups.isEmpty {
-                Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+                emptyText
                     .font(.subheadline)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 14)

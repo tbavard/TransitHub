@@ -51,6 +51,10 @@ struct StopDetailView: View {
     }
 
     private var emptyScheduleDescription: Text {
+        // Most specific reason first: the network's timetable hasn't started.
+        if schedule.isEmpty, let notice = appVM.serviceNotStartedMessage(for: stop.providerId) {
+            return Text(verbatim: notice)
+        }
         if let ctx = activeContext {
             return Text("Aucun service actif pour la ligne \(ctx.route.shortName) à cet arrêt.")
         }

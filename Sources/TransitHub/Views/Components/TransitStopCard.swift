@@ -13,6 +13,14 @@ struct TransitStopCard: View {
     var isFavorite: Bool = false
     var isLoading: Bool = false
     var maxRoutes: Int = 5
+    /// Replaces "No active service" when the reason is known (e.g. the
+    /// network's timetable only starts on a future date).
+    var emptyNotice: String? = nil
+
+    private var emptyText: Text {
+        if schedule.isEmpty, let emptyNotice { return Text(verbatim: emptyNotice) }
+        return Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+    }
 
     private var groups: [RouteDeparturesGroup] { schedule.groupedByRouteAndHeadsign(limit: 3) }
 
@@ -42,7 +50,7 @@ struct TransitStopCard: View {
                 }
             } else if groups.isEmpty {
                 Divider().padding(.leading, Spacing.lg)
-                Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+                emptyText
                     .font(Typography.body)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, Spacing.lg)

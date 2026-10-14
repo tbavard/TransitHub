@@ -490,6 +490,22 @@ final class GTFSDatabase {
         return count
     }
 
+    /// Earliest service date of this feed (YYYYMMDD): MIN start_date in
+    /// `calendar` and MIN added date in `calendar_dates`. Agencies often
+    /// publish the next service period before it starts (e.g. RTL), so this
+    /// can lie in the future. Read on demand — no re-import needed.
+    func fetchFeedStartDate() throws -> String? {
+        var calStart: String?
+        var cdStart:  String?
+        try query("SELECT MIN(start_date) FROM calendar") { stmt in
+            let v = col(stmt, 0); if !v.isEmpty { calStart = v }
+        }
+        try query("SELECT MIN(date) FROM calendar_dates WHERE exception_type = 1") { stmt in
+            let v = col(stmt, 0); if !v.isEmpty { cdStart = v }
+        }
+        return [calStart, cdStart].compactMap { $0 }.min()
+    }
+
     /// Returns the latest service date covered by this feed (YYYYMMDD), derived
     /// from the maximum end_date in `calendar` and the maximum date in
     /// `calendar_dates`. Returns nil if both tables are empty.

@@ -256,7 +256,8 @@ struct FavoritesView: View {
                             schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
                             userLocation: appVM.userLocation,
                             isFavorite: appVM.isFavorite(stop),
-                            isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil
+                            isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,
+                            emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
                         )
                     }
                     .buttonStyle(.plain)
