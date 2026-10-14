@@ -227,11 +227,17 @@ final class GTFSService {
     /// The MobilityDatabase snapshot of this feed covering `day`, if any.
     /// Best effort: no catalogue token / network error → nil.
     private func coveringArchive(for day: String) async -> MDBLatestDataset? {
-        let mdb = MobilityDatabaseService.shared
-        guard mdb.isConfigured,
-              let datasets = try? await mdb.fetchDatasets(feedId: provider.id)
-        else { return nil }
+        guard let datasets = await Self.fetchArchives(feedId: provider.id) else { return nil }
         return FeedPeriodSelector.covering(datasets, day: day)
+    }
+
+    /// MobilityDatabaseService is main-actor isolated (shared token cache);
+    /// the import runs off the main actor, so hop over for this one call.
+    @MainActor
+    private static func fetchArchives(feedId: String) async -> [MDBLatestDataset]? {
+        let mdb = MobilityDatabaseService.shared
+        guard mdb.isConfigured else { return nil }
+        return try? await mdb.fetchDatasets(feedId: feedId)
     }
 
     /// First service day declared by extracted calendar files ("yyyyMMdd").
