@@ -1,0 +1,57 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-and-test:
+    name: Build & test (iOS Simulator)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # The Xcode project is generated from project.yml (never committed),
+      # so CI always builds exactly what the sources describe.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # MobilityDBConfig.plist (catalogue token) is intentionally absent: the
+      # app treats a missing token as "catalogue not configured", and neither
+      # the build nor the unit tests need it.
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available -j | ruby -rjson -e '
+            runtimes = JSON.parse(STDIN.read)["devices"].select { |rt, _| rt.include?("iOS") }
+            phone = runtimes.sort.reverse.flat_map { |_, devs| devs }
+                            .find { |d| d["name"].start_with?("iPhone") }
+            puts phone ? phone["udid"] : ""')
+          if [ -z "$udid" ]; then echo "No iPhone simulator available"; exit 1; fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "Using simulator $udid"
+
+      - name: Build & test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project TransitHub.xcodeproj \
+            -scheme TransitHub \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log
