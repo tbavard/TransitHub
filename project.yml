@@ -7,6 +7,14 @@ options:
   createIntermediateGroups: true
   developmentLanguage: fr
 
+# Signing for every target. Kept here (not only in the generated, untracked
+# .xcodeproj) so `xcodegen generate` never drops the team. CI builds with
+# CODE_SIGNING_ALLOWED=NO, so it doesn't need a certificate.
+settings:
+  base:
+    DEVELOPMENT_TEAM: MNH6GV9BCZ
+    CODE_SIGN_STYLE: Automatic
+
 packages:
   ZIPFoundation:
     url: https://github.com/weichsel/ZIPFoundation.git
