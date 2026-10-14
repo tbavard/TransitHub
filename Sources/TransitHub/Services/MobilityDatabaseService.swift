@@ -69,6 +69,20 @@ final class MobilityDatabaseService {
         catch { throw MDBError.decode(error.localizedDescription) }
     }
 
+    /// Archived snapshots of a GTFS feed (`GET /gtfs_feeds/{id}/datasets`),
+    /// each with its service date range and MobilityData-hosted ZIP.
+    func fetchDatasets(feedId: String, limit: Int = 100) async throws -> [MDBLatestDataset] {
+        var comps = URLComponents(
+            url: base.appendingPathComponent("gtfs_feeds")
+                .appendingPathComponent(feedId)
+                .appendingPathComponent("datasets"),
+            resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        let data = try await authed(url: comps.url!)
+        do { return try JSONDecoder().decode([MDBLatestDataset].self, from: data) }
+        catch { throw MDBError.decode(error.localizedDescription) }
+    }
+
     func fetchRelatedRT(gtfsId: String) async throws -> [MDBGtfsRTFeed] {
         let url = base.appendingPathComponent("gtfs_feeds")
             .appendingPathComponent(gtfsId)
