@@ -18,9 +18,9 @@ final class MobilityDatabaseService {
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured: return "Catalogue non configuré (MobilityDBConfig.plist manquant)"
+            case .notConfigured: return String(localized: "Catalogue non configuré (MobilityDBConfig.plist manquant)")
             case .http(let code, let msg): return "HTTP \(code)" + (msg.map { " — \($0)" } ?? "")
-            case .decode(let msg): return "Réponse invalide: \(msg)"
+            case .decode(let msg): return String(localized: "Réponse invalide : \(msg)")
             }
         }
     }
@@ -66,6 +66,20 @@ final class MobilityDatabaseService {
         let url = base.appendingPathComponent("gtfs_feeds").appendingPathComponent(id)
         let data = try await authed(url: url)
         do { return try JSONDecoder().decode(MDBGtfsFeed.self, from: data) }
+        catch { throw MDBError.decode(error.localizedDescription) }
+    }
+
+    /// Archived snapshots of a GTFS feed (`GET /gtfs_feeds/{id}/datasets`),
+    /// each with its service date range and MobilityData-hosted ZIP.
+    func fetchDatasets(feedId: String, limit: Int = 100) async throws -> [MDBLatestDataset] {
+        var comps = URLComponents(
+            url: base.appendingPathComponent("gtfs_feeds")
+                .appendingPathComponent(feedId)
+                .appendingPathComponent("datasets"),
+            resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        let data = try await authed(url: comps.url!)
+        do { return try JSONDecoder().decode([MDBLatestDataset].self, from: data) }
         catch { throw MDBError.decode(error.localizedDescription) }
     }
 

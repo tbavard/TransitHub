@@ -94,7 +94,8 @@ enum TripPlanner {
         to destination: PlanEndpoint,
         allStops: [Stop],
         userLocation: CLLocation?,
-        departAt: Date
+        departAt: Date,
+        tripUpdates: [String: [String: TripUpdate]] = [:]
     ) async throws -> [TripItinerary] {
 
         if origin == destination { throw TripPlanError.sameEndpoint }
@@ -108,8 +109,6 @@ enum TripPlanner {
             .intersection(resolvedDestination.stopsByProvider.keys)
         guard !commonProviders.isEmpty else { throw TripPlanError.noRouteFound }
 
-        let depTimeStr = gtfsTimeString(from: departAt)
-
         var allItineraries: [TripItinerary] = []
 
         for providerId in commonProviders {
@@ -120,8 +119,9 @@ enum TripPlanner {
                 providerId: providerId,
                 fromStopIds: fromStops.map(\.id),
                 toStopIds:   toStops.map(\.id),
-                afterTime:   depTimeStr
+                departAt:    departAt
             )
+            let liveTrips = tripUpdates[providerId] ?? [:]
 
             let byId: [String: Stop] = Dictionary(uniqueKeysWithValues:
                 (fromStops + toStops).map { ($0.id, $0) }
@@ -132,9 +132,25 @@ enum TripPlanner {
             let originName  = resolvedOrigin.displayName
             let destName    = resolvedDestination.displayName
 
-            for row in rows {
+            for (row, serviceDay) in rows {
                 guard let fromStop = byId[row.fromStopId],
                       let toStop   = byId[row.toStopId] else { continue }
+
+                // Live predictions at both ends; a canceled trip or a skipped
+                // boarding/alighting stop makes the option unusable.
+                let scheduledDeparture = absoluteDate(for: row.departureTime, reference: serviceDay)
+                let scheduledArrival   = absoluteDate(for: row.arrivalTime, reference: serviceDay)
+                let boarding = RealtimeScheduleMerger.status(
+                    tripId: row.tripId, stopId: row.fromStopId, stopSequence: row.fromSequence,
+                    scheduled: scheduledDeparture, updates: liveTrips)
+                let alighting = RealtimeScheduleMerger.status(
+                    tripId: row.tripId, stopId: row.toStopId, stopSequence: row.toSequence,
+                    scheduled: scheduledArrival, updates: liveTrips)
+                if [boarding, alighting].contains(where: { $0 == .canceled || $0 == .skipped }) {
+                    continue
+                }
+                let departureDelay = Self.delaySeconds(boarding)
+                let arrivalDelay   = Self.delaySeconds(alighting) ?? departureDelay
 
                 let walkTo = WalkLeg(
                     fromName:       originName,
@@ -162,7 +178,10 @@ enum TripPlanner {
                     departureTime:  row.departureTime,
                     arrivalTime:    row.arrivalTime,
                     tripId:         row.tripId,
-                    numStops:       row.stopCount
+                    numStops:       row.stopCount,
+                    liveDelaySeconds: departureDelay,
+                    scheduledDeparture: scheduledDeparture,
+                    fromStopSequence: row.fromSequence
                 )
 
                 var legs: [TripLeg] = []
@@ -170,10 +189,12 @@ enum TripPlanner {
                 legs.append(.transit(transit))
                 if walkFrom.distanceMeters > 15 { legs.append(.walk(walkFrom)) }
 
-                let departure = absoluteDate(for: row.departureTime, reference: departAt)
-                                    .addingTimeInterval(-Double(walkTo.walkMinutes * 60))
-                let arrival = absoluteDate(for: row.arrivalTime, reference: departAt)
-                                    .addingTimeInterval(Double(walkFrom.walkMinutes * 60))
+                let departure = scheduledDeparture
+                    .addingTimeInterval(Double(departureDelay ?? 0))
+                    .addingTimeInterval(-Double(walkTo.walkMinutes * 60))
+                let arrival = scheduledArrival
+                    .addingTimeInterval(Double(arrivalDelay ?? 0))
+                    .addingTimeInterval(Double(walkFrom.walkMinutes * 60))
 
                 allItineraries.append(TripItinerary(
                     legs: legs,
@@ -204,30 +225,51 @@ enum TripPlanner {
 
     // MARK: - DB glue
 
+    /// Direct-trip rows departing at or after `departAt`, each tagged with the
+    /// service day its GTFS times are relative to: the departure day's own
+    /// services, plus the previous day's after-midnight trips (times ≥ 24:00,
+    /// queried with the departure time shifted by +24 h).
     private static func fetchRowsDetached(
         providerId: String,
         fromStopIds: [String],
         toStopIds:   [String],
-        afterTime:   String
-    ) async -> [GTFSDatabase.DirectTripRow] {
+        departAt:    Date
+    ) async -> [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] {
         await Task.detached(priority: .userInitiated) {
             let db = GTFSDatabase.forProviderId(providerId)
             do {
                 try db.open()
                 defer { db.close() }
-                let services = (try? db.fetchActiveServiceIds()) ?? []
-                guard !services.isEmpty else { return [] }
-                return (try? db.fetchDirectTrips(
-                    fromStopIds: fromStopIds,
-                    toStopIds:   toStopIds,
-                    serviceIds:  services,
-                    afterTime:   afterTime,
-                    limit:       dbRowLimit
-                )) ?? []
+                let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: departAt) ?? departAt
+                let afterTime = gtfsTimeString(from: departAt)
+                let afterTimeOvernight = GTFSTime.format(
+                    seconds: (GTFSTime.seconds(of: afterTime) ?? 0) + 24 * 3600)
+
+                func rows(on day: Date, after time: String) -> [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] {
+                    // Services of the planned day — not "today" — so planning
+                    // for tomorrow uses tomorrow's calendar.
+                    let services = (try? db.fetchActiveServiceIds(for: day)) ?? []
+                    guard !services.isEmpty else { return [] }
+                    let found = (try? db.fetchDirectTrips(
+                        fromStopIds: fromStopIds,
+                        toStopIds:   toStopIds,
+                        serviceIds:  services,
+                        afterTime:   time,
+                        limit:       dbRowLimit
+                    )) ?? []
+                    return found.map { (row: $0, serviceDay: day) }
+                }
+                return rows(on: departAt, after: afterTime)
+                     + rows(on: previousDay, after: afterTimeOvernight)
             } catch {
                 return []
             }
         }.value
+    }
+
+    private static func delaySeconds(_ status: RealtimeStatus?) -> Int? {
+        if case .delay(let s)? = status { return s }
+        return nil
     }
 
     // MARK: - Time helpers

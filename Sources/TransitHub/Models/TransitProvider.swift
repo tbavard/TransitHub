@@ -28,7 +28,7 @@ struct TransitProvider: Identifiable, Equatable, Codable, Hashable {
     var rtAuthType: Int = 0
     var rtApiKeyParamName: String?
 
-    var brandColor: Color { Color(hex: brandColorHex) ?? .blue }
+    var brandColor: Color { Color(hex: brandColorHex) ?? Theme.brandStart }
 
     var needsRealtimeKey: Bool { supportsRealtime && rtAuthType != 0 }
 }
@@ -75,8 +75,8 @@ struct ProviderBadge: View {
         Text(p.shortName)
             .font(font)
             .foregroundStyle(.white)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(p.brandColor, in: RoundedRectangle(cornerRadius: 4))
+            .padding(.horizontal, Spacing.xs + 1)
+            .padding(.vertical, Spacing.xxs)
+            .background(p.brandColor.livelyGradient, in: RoundedRectangle(cornerRadius: Radius.xs))
     }
 }

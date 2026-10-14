@@ -41,7 +41,7 @@ struct PlanStopPickerView: View {
                                     .foregroundStyle(.primary)
                             } icon: {
                                 Image(systemName: "location.fill")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Theme.brandStart)
                             }
                         }
                     }
@@ -100,7 +100,7 @@ struct PlanStopPickerView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                    .foregroundStyle(stop.isStation ? .blue : .secondary)
+                    .foregroundStyle(stop.isStation ? Theme.brandStart : .secondary)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(stop.name)

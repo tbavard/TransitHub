@@ -16,7 +16,7 @@ struct DepartureSnapshot: Codable, Identifiable {
         let headsign: String
         let routeColor: String   // RRGGBB hex
 
-        var color: Color { Color(hex: routeColor) ?? .blue }
+        var color: Color { Color(hex: routeColor) ?? Theme.brandStart }
     }
 }
 
@@ -38,21 +38,5 @@ struct SharedDataStore {
               let decoded = try? JSONDecoder().decode([DepartureSnapshot].self, from: data)
         else { return [] }
         return decoded
-    }
-}
-
-// MARK: - Re-export Color hex for Shared target
-
-extension Color {
-    init?(hexShared: String) {
-        let hex = hexShared.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        guard hex.count == 6 else { return nil }
-        var rgb: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&rgb)
-        self.init(
-            red:   Double((rgb >> 16) & 0xFF) / 255.0,
-            green: Double((rgb >>  8) & 0xFF) / 255.0,
-            blue:  Double( rgb        & 0xFF) / 255.0
-        )
     }
 }

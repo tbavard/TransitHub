@@ -60,16 +60,17 @@ final class GTFSRealtimeService {
     }
 
     func testConnection() async -> ConnectionStatus {
-        guard hasAPIKey else { return .failure("Aucune clé enregistrée") }
+        guard hasAPIKey else { return .failure(String(localized: "Aucune clé enregistrée")) }
         guard provider.rtVehiclePositionsURL != nil else {
-            return .failure("Aucun flux temps réel configuré")
+            return .failure(String(localized: "Aucun flux temps réel configuré"))
         }
         do {
             let vehicles = try await fetchVehiclePositions()
             return .success(vehicleCount: vehicles.count)
         } catch GTFSError.downloadError(let msg) {
             if msg.contains("401") || msg.contains("403") {
-                return .failure("Clé invalide ou accès refusé (HTTP \(msg))")
+                // `msg` is already "HTTP 401" — don't prefix it twice.
+                return .failure(String(localized: "Clé invalide ou accès refusé (\(msg))"))
             }
             return .failure(msg)
         } catch {
@@ -194,10 +195,10 @@ final class GTFSRealtimeService {
                 comps.queryItems = items
                 if let newURL = comps.url { req.url = newURL }
             } else if apiKey.isEmpty {
-                throw GTFSError.downloadError("Clé API manquante")
+                throw GTFSError.downloadError(String(localized: "Clé API manquante"))
             }
         case 2:
-            guard !apiKey.isEmpty else { throw GTFSError.downloadError("Clé API manquante") }
+            guard !apiKey.isEmpty else { throw GTFSError.downloadError(String(localized: "Clé API manquante")) }
             let header = provider.rtApiKeyParamName ?? "apiKey"
             req.setValue(apiKey, forHTTPHeaderField: header)
         default:
@@ -272,16 +273,19 @@ final class GTFSRealtimeService {
                     arrivalTime:    stu.hasArrival   && stu.arrival.hasTime
                                         ? Date(timeIntervalSince1970: Double(stu.arrival.time))  : nil,
                     departureTime:  stu.hasDeparture && stu.departure.hasTime
-                                        ? Date(timeIntervalSince1970: Double(stu.departure.time)) : nil
+                                        ? Date(timeIntervalSince1970: Double(stu.departure.time)) : nil,
+                    isSkipped:      stu.scheduleRelationship == .skipped
                 )
             }
             let vehicleId = tu.hasVehicle ? tu.vehicle.id : ""
+            let relationship = tu.hasTrip ? tu.trip.scheduleRelationship : .scheduled
             return TripUpdate(
                 id:              tripId,
                 routeId:         routeId,
                 vehicleId:       vehicleId,
                 stopTimeUpdates: updates,
-                timestamp:       tu.hasTimestamp ? Date(timeIntervalSince1970: Double(tu.timestamp)) : Date()
+                timestamp:       tu.hasTimestamp ? Date(timeIntervalSince1970: Double(tu.timestamp)) : Date(),
+                isCanceled:      relationship == .canceled || relationship == .deleted
             )
         }
     }
@@ -311,21 +315,39 @@ final class GTFSRealtimeService {
 
             let cause = alert.hasCause ? "\(alert.cause)" : nil
             let effect = alert.hasEffect ? "\(alert.effect)" : nil
-            let type = cause ?? effect ?? "Avis"
+            // No free text here: typeLabel localizes cause/effect, or falls
+            // back to the localized generic "Notice/Avis".
+            let type = cause ?? effect ?? ""
 
             let routes = alert.informedEntity.map { $0.routeID }.filter { !$0.isEmpty }
             let stops  = alert.informedEntity.map { $0.stopID  }.filter { !$0.isEmpty }
 
+            let feedSeverity: Int?
+            switch alert.hasSeverityLevel ? alert.severityLevel : .unknownSeverity {
+            case .info:    feedSeverity = 1
+            case .warning: feedSeverity = 2
+            case .severe:  feedSeverity = 3
+            default:       feedSeverity = nil
+            }
+
             return ServiceAlert(id: entity.id.isEmpty ? UUID().uuidString : entity.id,
                                 title: title, body: body, type: type,
                                 affectedRouteIds: routes, affectedStopCodes: stops,
-                                fetchedAt: Date())
+                                fetchedAt: Date(),
+                                cause: cause, effect: effect,
+                                feedSeverity: feedSeverity)
         }
     }
 
+    /// Picks the translation in the app's display language, then French
+    /// (the app's development language), then whatever the feed provides.
     private func localized(_ ts: TransitRealtime_TranslatedString) -> String {
-        let french = ts.translation.first { $0.hasLanguage && $0.language.hasPrefix("fr") && !$0.text.isEmpty }
-        return french?.text
+        func translation(_ prefix: String) -> String? {
+            ts.translation.first { $0.hasLanguage && $0.language.hasPrefix(prefix) && !$0.text.isEmpty }?.text
+        }
+        let appLanguage = Bundle.main.preferredLocalizations.first ?? "fr"
+        return translation(appLanguage)
+            ?? translation("fr")
             ?? ts.translation.first { !$0.text.isEmpty }?.text
             ?? ""
     }
@@ -380,15 +402,25 @@ private struct RawAlert: Codable {
 
     func toServiceAlert(relativeTo now: Int) -> ServiceAlert? {
         if let end = active_periods?.end, end < now { return nil }
-        let title = preferFrench(header_texts)
+        let title = inAppLanguage(header_texts)
         guard !title.isEmpty else { return nil }
-        let body   = preferFrench(description_texts)
-        let type   = cause ?? effect ?? inferType(from: body)
+        let body   = inAppLanguage(description_texts)
+        // French source text drives the STM severity heuristic; the matching
+        // GTFS-RT cause/effect name drives the localized label shown.
+        let (type, stdCause, stdEffect) = Self.classify(cause ?? effect ?? "", body: preferFrench(description_texts))
         let routes = (informed_entities ?? []).compactMap { $0.route_short_name }
         let stops  = (informed_entities ?? []).compactMap { $0.stop_code }.filter { !$0.isEmpty }
         return ServiceAlert(id: UUID().uuidString, title: title, body: body,
                             type: type, affectedRouteIds: routes,
-                            affectedStopCodes: stops, fetchedAt: Date())
+                            affectedStopCodes: stops, fetchedAt: Date(),
+                            cause: stdCause, effect: stdEffect)
+    }
+
+    /// The app's display language first (STM publishes FR and EN), then French.
+    private func inAppLanguage(_ texts: [LocalizedText]?) -> String {
+        let lang = Bundle.main.preferredLocalizations.first ?? "fr"
+        return texts?.first(where: { $0.language?.hasPrefix(lang) == true && $0.text?.isEmpty == false })?.text
+            ?? preferFrench(texts)
     }
 
     private func preferFrench(_ texts: [LocalizedText]?) -> String {
@@ -397,11 +429,12 @@ private struct RawAlert: Codable {
             ?? ""
     }
 
-    private func inferType(from text: String) -> String {
-        let t = text.lowercased()
-        if t.contains("travaux")                               { return "Travaux" }
-        if t.contains("perturbation") || t.contains("retard") { return "Perturbation" }
-        if t.contains("fermeture") || t.contains("suspension") { return "Fermeture" }
-        return "Avis"
+    /// (French type for the severity heuristic, standard cause, standard effect).
+    private static func classify(_ raw: String, body: String) -> (String, String?, String?) {
+        let t = (raw.isEmpty ? body : raw).lowercased()
+        if t.contains("travaux")                               { return ("Travaux", "construction", nil) }
+        if t.contains("perturbation") || t.contains("retard") { return ("Perturbation", nil, "significantDelays") }
+        if t.contains("fermeture") || t.contains("suspension") { return ("Fermeture", nil, "noService") }
+        return (raw, nil, nil)
     }
 }

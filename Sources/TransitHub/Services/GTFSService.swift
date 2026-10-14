@@ -109,6 +109,28 @@ final class GTFSService {
             guard let ts = try db.getMetadata("imported_at"),
                   let epoch = Double(ts) else { return false }
 
+            // Databases built by an older importer must be rebuilt.
+            guard try db.getMetadata("data_version") == "\(GTFSDatabase.dataVersion)" else {
+                return false
+            }
+
+            let today = FeedPeriodSelector.dayKey()
+
+            // An archived snapshot stands in for a producer feed that starts
+            // later: keep it until that day (or its own end, if earlier).
+            if let upcoming = try db.getMetadata("upcoming_feed_start") {
+                let end = try db.getMetadata("feed_end_date") ?? upcoming
+                return today < upcoming && today <= end
+            }
+
+            // Future-only data (no snapshot covered today at import time, or a
+            // database imported before this logic existed): retry the archive
+            // lookup, at most every 12 h.
+            if let start = try db.fetchFeedStartDate(), start > today {
+                let checked = Double(try db.getMetadata("archive_checked_at") ?? "") ?? 0
+                return Date().timeIntervalSince1970 - checked < 12 * 3600
+            }
+
             if let endStr = try db.getMetadata("feed_end_date"),
                let endDate = Self.parseGtfsDate(endStr) {
                 // Refresh 1 day before the feed actually expires.
@@ -131,26 +153,64 @@ final class GTFSService {
     }
 
     /// Downloads GTFS, extracts, imports into SQLite.  Reports progress via `onProgress`.
+    ///
+    /// When the producer's feed only starts in the future (the agency already
+    /// published its next period), the MobilityDatabase snapshot covering
+    /// today is installed instead, until the new period begins.
     func downloadAndImport(onProgress: @Sendable @escaping (Double, String) -> Void) async throws {
-        onProgress(0.0, String(localized: "gtfs.downloading"))
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gtfs_\(provider.id)_\(Int(Date().timeIntervalSince1970))", isDirectory: true)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workDir) }
 
-        // Stream download directly to a temp file — never loads the ZIP into memory.
-        let (downloadedURL, response) = try await URLSession.shared.download(from: gtfsZipURL)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw GTFSError.downloadError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        onProgress(0.0, String(localized: "gtfs.downloading"))
+        let producerRoot = try await downloadAndExtract(
+            gtfsZipURL, into: workDir.appendingPathComponent("producer", isDirectory: true))
+
+        // Cheap peek at the (tiny) calendar files before the heavy import.
+        let today = FeedPeriodSelector.dayKey()
+        var root = producerRoot
+        var metadata: [String: String] = [:]
+        if let producerStart = Self.peekStartDay(in: producerRoot), producerStart > today {
+            if let archive = await coveringArchive(for: today),
+               let archiveURL = archive.hosted_url.flatMap(URL.init(string:)),
+               let archiveRoot = try? await downloadAndExtract(
+                   archiveURL, into: workDir.appendingPathComponent("archive", isDirectory: true)) {
+                root = archiveRoot
+                // Keep the snapshot only until the producer's period begins.
+                metadata["upcoming_feed_start"] = producerStart
+                metadata["feed_source"] = "mdb-archive:\(archive.id ?? "?")"
+            } else {
+                // Nothing covers today: import the future feed (the UI says
+                // when service starts) and retry the archive lookup later.
+                metadata["archive_checked_at"] = "\(Date().timeIntervalSince1970)"
+            }
         }
 
         onProgress(0.30, String(localized: "gtfs.extracting"))
+        do {
+            try await importExtracted(root: root, metadata: metadata, onProgress: onProgress)
+        } catch _ where root != producerRoot {
+            // A broken archive must not cost the user their schedules: fall
+            // back to the producer's (future) feed and retry later.
+            try await importExtracted(
+                root: producerRoot,
+                metadata: ["archive_checked_at": "\(Date().timeIntervalSince1970)"],
+                onProgress: onProgress)
+        }
+    }
 
-        // Move the URLSession temp file into our own temp dir, then extract.
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("gtfs_\(provider.id)_\(Int(Date().timeIntervalSince1970))", isDirectory: true)
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tmpDir) }
-
-        let zipTmp = tmpDir.appendingPathComponent("gtfs.zip")
+    /// Streams `url` to disk (never in memory), unzips it into `dir` and
+    /// returns the folder that actually holds the .txt files.
+    private func downloadAndExtract(_ url: URL, into dir: URL) async throws -> URL {
+        let (downloadedURL, response) = try await URLSession.shared.download(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw GTFSError.downloadError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let zipTmp = dir.appendingPathComponent("gtfs.zip")
         try FileManager.default.moveItem(at: downloadedURL, to: zipTmp)
-        try FileManager.default.unzipItem(at: zipTmp, to: tmpDir)
+        try FileManager.default.unzipItem(at: zipTmp, to: dir)
         // Free the zip immediately — the extracted text files are all we need.
         try? FileManager.default.removeItem(at: zipTmp)
 
@@ -158,10 +218,61 @@ final class GTFSService {
         // inside a subfolder rather than at the archive root. Resolve the
         // actual GTFS root before importing, otherwise every importer would
         // silently skip its file via `openCSV` returning nil.
-        guard let gtfsRoot = Self.findGtfsRoot(in: tmpDir) else {
+        guard let gtfsRoot = Self.findGtfsRoot(in: dir) else {
             throw GTFSError.downloadError(String(localized: "gtfs.error.invalid_archive"))
         }
+        return gtfsRoot
+    }
 
+    /// The MobilityDatabase snapshot of this feed covering `day`, if any.
+    /// Best effort: no catalogue token / network error → nil.
+    private func coveringArchive(for day: String) async -> MDBLatestDataset? {
+        guard let datasets = await Self.fetchArchives(feedId: provider.id) else { return nil }
+        return FeedPeriodSelector.covering(datasets, day: day)
+    }
+
+    /// MobilityDatabaseService is main-actor isolated (shared token cache);
+    /// the import runs off the main actor, so hop over for this one call.
+    @MainActor
+    private static func fetchArchives(feedId: String) async -> [MDBLatestDataset]? {
+        let mdb = MobilityDatabaseService.shared
+        guard mdb.isConfigured else { return nil }
+        return try? await mdb.fetchDatasets(feedId: feedId)
+    }
+
+    /// First service day declared by extracted calendar files ("yyyyMMdd").
+    private static func peekStartDay(in root: URL) -> String? {
+        func column(_ file: String, _ name: String, keepingRows keep: (([String], [String: Int]) -> Bool)? = nil) -> [String] {
+            guard let reader = try? LineReader(url: root.appendingPathComponent(file)),
+                  var header = reader.nextLine() else { return [] }
+            if header.hasPrefix("\u{FEFF}") { header = String(header.dropFirst()) }
+            let idx = Dictionary(splitCSV(header).enumerated().map {
+                ($0.element.trimmingCharacters(in: .whitespaces), $0.offset)
+            }, uniquingKeysWith: { a, _ in a })
+            guard let col = idx[name] else { return [] }
+            var out: [String] = []
+            while let line = reader.nextLine() {
+                let v = splitCSV(line)
+                guard col < v.count, keep?(v, idx) ?? true else { continue }
+                out.append(v[col].trimmingCharacters(in: .whitespaces))
+            }
+            return out
+        }
+        let added = column("calendar_dates.txt", "date") { v, idx in
+            guard let t = idx["exception_type"], t < v.count else { return false }
+            return v[t].trimmingCharacters(in: .whitespaces) == "1"
+        }
+        return FeedPeriodSelector.startDay(
+            calendarStartDates: column("calendar.txt", "start_date"),
+            addedExceptionDates: added)
+    }
+
+    /// Imports an extracted GTFS folder into a fresh database.
+    private func importExtracted(
+        root gtfsRoot: URL,
+        metadata extraMetadata: [String: String],
+        onProgress: @Sendable @escaping (Double, String) -> Void
+    ) async throws {
         onProgress(0.35, String(localized: "gtfs.creating_db"))
 
         // Delete old DB and reimport
@@ -188,6 +299,7 @@ final class GTFSService {
         try await importStopTimes(dir: gtfsRoot, db: db, onProgress: { p in
             onProgress(0.55 + p * 0.43, String(format: String(localized: "gtfs.importing_stoptimes_progress"), Int(p * 100)))
         })
+        try db.interpolateMissingStopTimes()
 
         // Validate every table the schedule query depends on has rows — a wrong
         // ZIP layout makes `openCSV` return nil and every importer silently
@@ -209,8 +321,12 @@ final class GTFSService {
         // Mark completion — also persist the feed's coverage end date so
         // isDatabaseFresh() can expire based on actual data, not a fixed interval.
         try db.setMetadata("imported_at", "\(Date().timeIntervalSince1970)")
+        try db.setMetadata("data_version", "\(GTFSDatabase.dataVersion)")
         if let endDate = try? db.fetchFeedEndDate() {
             try db.setMetadata("feed_end_date", endDate)
+        }
+        for (key, value) in extraMetadata {
+            try db.setMetadata(key, value)
         }
 
         onProgress(1.0, String(localized: "gtfs.ready"))
@@ -304,12 +420,18 @@ final class GTFSService {
             guard !line.isEmpty else { continue }
             let v = splitCSV(line)
             guard !v.isEmpty else { continue }
-            let departure = field(v, csv.index, "departure_time")
-            guard !departure.isEmpty else { continue }   // skip timepoint=0 interpolated rows
+            // Non-timepoint stops may have no times at all. They used to be
+            // dropped, which removed those stops from route lists and
+            // schedules; they are now kept with empty times and filled by
+            // `interpolateMissingStopTimes()` once the whole file is in.
+            let rawDeparture = GTFSTime.normalized(field(v, csv.index, "departure_time"))
+            let rawArrival   = GTFSTime.normalized(field(v, csv.index, "arrival_time"))
+            let departure = rawDeparture.isEmpty ? rawArrival : rawDeparture
+            let arrival   = rawArrival.isEmpty ? rawDeparture : rawArrival
             db.insertStopTime(
                 tripId:    field(v, csv.index, "trip_id"),
                 stopId:    field(v, csv.index, "stop_id"),
-                arrival:   field(v, csv.index, "arrival_time"),
+                arrival:   arrival,
                 departure: departure,
                 seq:       Int(field(v, csv.index, "stop_sequence")) ?? 0
             )

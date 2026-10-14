@@ -11,11 +11,13 @@ final class AppViewModel: ObservableObject {
     // MARK: - Dependencies
 
     let providersStore: UserProvidersStore
+    private let deps: AppDependencies
     private var providerSubscription: AnyCancellable?
     private var iCloudObserver: NSObjectProtocol?
 
-    init(providersStore: UserProvidersStore) {
+    init(providersStore: UserProvidersStore, dependencies: AppDependencies = .live) {
         self.providersStore = providersStore
+        self.deps = dependencies
         // Reload GTFS only when the provider SET changes (add/remove). Ignore
         // metadata-only edits like renaming the short name, otherwise each
         // keystroke in Settings would kick off a fresh download.
@@ -61,11 +63,39 @@ final class AppViewModel: ObservableObject {
     @Published var stops:  [Stop]  = []
     @Published var todayServiceIds: [String] = []
 
+    /// First service day of each provider's feed (see `serviceNotStartedMessage`).
+    @Published var serviceStartByProvider: [String: Date] = [:]
+
+    /// "RTL schedules start on October 16." when the provider's feed only
+    /// covers a future period — explains an otherwise empty schedule.
+    /// nil once that day has come (or when unknown).
+    func serviceNotStartedMessage(for providerId: String) -> String? {
+        guard let start = serviceStartByProvider[providerId],
+              start > Calendar.current.startOfDay(for: Date())
+        else { return nil }
+        let name = providersStore.providers.first { $0.id == providerId }?.shortName ?? providerId
+        let day = start.formatted(.dateTime.day().month(.wide))
+        return String(format: String(localized: "schedule.starts_on"), name, day)
+    }
+
+    /// GTFS "YYYYMMDD" → local midnight of that day.
+    nonisolated static func parseServiceDate(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyyMMdd"
+        return f.date(from: s)
+    }
+
     // MARK: - Real-time data
 
     @Published var serviceAlerts:    [ServiceAlert]    = []
     @Published var routeDelays:      [RouteDelay]      = []
     @Published var vehiclePositions: [VehiclePosition] = []
+    /// Live trip updates per provider, keyed by trip_id — merged into stop
+    /// schedules by `withRealtime(_:at:)`.
+    @Published var tripUpdatesByProvider: [String: [String: TripUpdate]] = [:]
     @Published var isRefreshingRealtime = false
     @Published var realtimeError: Error?
 
@@ -124,9 +154,9 @@ final class AppViewModel: ObservableObject {
                 let db = GTFSDatabase.forProviderId(pid)
                 try? db.open()
                 defer { db.close() }
-                let sids = (try? db.fetchActiveServiceIds()) ?? []
+                let services = (try? db.fetchActiveServices()) ?? ActiveServices(today: [], yesterday: [])
                 for stop in provStops {
-                    result[stop.id] = (try? db.fetchSchedule(stopId: stop.id, serviceIds: sids)) ?? []
+                    result[stop.id] = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
                 }
             }
             return result
@@ -140,9 +170,17 @@ final class AppViewModel: ObservableObject {
             let db = GTFSDatabase.forProviderId(pid)
             try db.open()
             defer { db.close() }
-            let serviceIds = try db.fetchActiveServiceIds()
-            return try db.fetchSchedule(stopId: stopId, serviceIds: serviceIds)
+            let services = try db.fetchActiveServices()
+            return try db.fetchSchedule(stopId: stopId, services: services)
         }.value
+    }
+
+    /// Overlays the latest live trip updates on a stop's static schedule.
+    /// Cheap (dictionary lookups), so views call it at render time and pick
+    /// up each 30 s realtime refresh without re-querying SQLite.
+    func withRealtime(_ entries: [ScheduleEntry], at stop: Stop) -> [ScheduleEntry] {
+        RealtimeScheduleMerger.apply(tripUpdatesByProvider[stop.providerId] ?? [:],
+                                     to: entries, stopId: stop.id)
     }
 
     // MARK: - Trip planning
@@ -155,24 +193,21 @@ final class AppViewModel: ObservableObject {
     ) async throws -> [TripItinerary] {
         let snapshotStops = stops
         let loc = userLocation
+        let liveTrips = tripUpdatesByProvider
         return try await TripPlanner.planDirect(
             from: origin,
             to: destination,
             allStops: snapshotStops,
             userLocation: loc,
-            departAt: departAt
+            departAt: departAt,
+            tripUpdates: liveTrips
         )
     }
 
     // MARK: - Favorites management
 
     func toggleFavorite(_ stop: Stop) {
-        let key = stop.favoriteKey
-        if favoriteStopIds.contains(key) {
-            favoriteStopIds.remove(key)
-        } else {
-            favoriteStopIds.insert(key)
-        }
+        favoriteStopIds = FavoritesEngine.toggling(stop.favoriteKey, in: favoriteStopIds)
         saveFavorites()
     }
 
@@ -196,7 +231,7 @@ final class AppViewModel: ObservableObject {
         let remote = kvs.array(forKey: favoritesKey) as? [String]
         let local  = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
         let combined = Set(remote ?? []).union(local)
-        let migrated = Self.migrateLegacyFavoriteKeys(combined)
+        let migrated = FavoritesEngine.loaded(remote: remote, local: local)
         favoriteStopIds = migrated
         if migrated != combined || remote == nil {
             saveFavorites()
@@ -211,8 +246,7 @@ final class AppViewModel: ObservableObject {
         let changedKeys = userInfo[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
         guard changedKeys.contains(favoritesKey) else { return }
         let remote = NSUbiquitousKeyValueStore.default.array(forKey: favoritesKey) as? [String] ?? []
-        let merged = favoriteStopIds.union(remote)
-        let migrated = Self.migrateLegacyFavoriteKeys(merged)
+        let migrated = FavoritesEngine.merge(local: favoriteStopIds, remote: remote)
         guard migrated != favoriteStopIds else { return }
         favoriteStopIds = migrated
         // Write back so the device that originated this change also ends up
@@ -220,11 +254,11 @@ final class AppViewModel: ObservableObject {
         saveFavorites()
     }
 
-    /// Upgrade any bare-ID entries (legacy single-provider format) to the
-    /// namespaced "providerId:stopId" form. Unknown legacy IDs are attributed
-    /// to STM since it was the only provider before multi-provider support.
+    /// Upgrade legacy bare-ID favorites to the namespaced "providerId:stopId"
+    /// form. Delegates to `FavoritesEngine`; kept as a thin alias for callers
+    /// (and tests) that reference it here.
     nonisolated static func migrateLegacyFavoriteKeys(_ keys: Set<String>) -> Set<String> {
-        Set(keys.map { $0.contains(":") ? $0 : "stm:\($0)" })
+        FavoritesEngine.migrateLegacyKeys(keys)
     }
 
     // MARK: - Realtime refresh
@@ -232,7 +266,7 @@ final class AppViewModel: ObservableObject {
     func refreshRealtime() async {
         let realtimeProviders = providersStore.providers.filter {
             $0.supportsRealtime &&
-            GTFSRealtimeService.forProvider($0).hasAPIKey
+            deps.realtimeService($0).hasAPIKey
         }
         guard !realtimeProviders.isEmpty else { return }
 
@@ -241,11 +275,12 @@ final class AppViewModel: ObservableObject {
 
         var mergedVehicles: [VehiclePosition] = []
         var mergedDelays:   [RouteDelay]      = []
+        var mergedTrips:    [String: [String: TripUpdate]] = [:]
         var mergedAlerts:   [ServiceAlert]    = []
         var firstError: Error? = nil
 
         for provider in realtimeProviders {
-            let service = GTFSRealtimeService.forProvider(provider)
+            let service = deps.realtimeService(provider)
 
             async let vehiclesTask = service.fetchVehiclePositions()
             async let updatesTask  = service.fetchTripUpdates()
@@ -259,6 +294,8 @@ final class AppViewModel: ObservableObject {
             do {
                 let updates = try await updatesTask
                 mergedDelays += await service.computeRouteDelays(from: updates)
+                mergedTrips[provider.id] = Dictionary(updates.map { ($0.id, $0) },
+                                                      uniquingKeysWith: { first, _ in first })
             } catch {
                 firstError = firstError ?? error
             }
@@ -270,8 +307,9 @@ final class AppViewModel: ObservableObject {
         }
 
         vehiclePositions = mergedVehicles
-        routeDelays      = mergedDelays.sorted { $0.avgDelaySeconds > $1.avgDelaySeconds }
-        serviceAlerts    = mergedAlerts.sorted { $0.severityLevel > $1.severityLevel }
+        tripUpdatesByProvider = mergedTrips
+        routeDelays      = RealtimeAggregator.sortedDelays(mergedDelays)
+        serviceAlerts    = RealtimeAggregator.sortedAlerts(mergedAlerts)
         realtimeError    = firstError
 
         updateWidgetSnapshots()
@@ -283,6 +321,7 @@ final class AppViewModel: ObservableObject {
     func updateWidgetSnapshots() {
         guard !favoriteStops.isEmpty else { return }
         let stops = Array(favoriteStops.prefix(3))
+        let liveTrips = tripUpdatesByProvider
         Task.detached(priority: .background) {
             let byProvider = Dictionary(grouping: stops, by: \.providerId)
             var snapshots: [DepartureSnapshot] = []
@@ -291,10 +330,14 @@ final class AppViewModel: ObservableObject {
                 let db = GTFSDatabase.forProviderId(pid)
                 try? db.open()
                 defer { db.close() }
-                let sids = (try? db.fetchActiveServiceIds()) ?? []
+                let services = (try? db.fetchActiveServices()) ?? ActiveServices(today: [], yesterday: [])
                 for stop in provStops {
-                    let entries = (try? db.fetchSchedule(stopId: stop.id, serviceIds: sids)) ?? []
-                    let snapshotEntries = entries.prefix(6).map { e in
+                    let scheduled = (try? db.fetchSchedule(stopId: stop.id, services: services)) ?? []
+                    let entries = RealtimeScheduleMerger.apply(liveTrips[pid] ?? [:], to: scheduled, stopId: stop.id)
+                    let snapshotEntries = entries
+                        .filter { !$0.hasDepartedToday && !$0.isCanceled }
+                        .sorted { $0.minutesUntilDeparture < $1.minutesUntilDeparture }
+                        .prefix(6).map { e in
                         DepartureSnapshot.SnapshotEntry(
                             id:             UUID().uuidString,
                             minutesFromNow: e.minutesUntilDeparture,
@@ -358,7 +401,7 @@ final class AppViewModel: ObservableObject {
                     }
                 }
 
-                let service = GTFSService.forProvider(provider)
+                let service = deps.gtfsService(provider)
                 let isFresh = await Task.detached { service.isDatabaseFresh() }.value
                 if !isFresh {
                     try await Task.detached {
@@ -367,15 +410,16 @@ final class AppViewModel: ObservableObject {
                 }
 
                 loadingMessage = String(format: String(localized: "loading.lines"), provider.shortName)
-                let (provRoutes, provStops) = try await Task.detached(priority: .userInitiated) {
+                let (provRoutes, provStops, startDate) = try await Task.detached(priority: .userInitiated) {
                     let db = GTFSDatabase.forProviderId(pid)
                     try db.open()
                     defer { db.close() }
-                    return (try db.fetchRoutes(), try db.fetchStops())
+                    return (try db.fetchRoutes(), try db.fetchStops(), try? db.fetchFeedStartDate())
                 }.value
 
                 allRoutes += provRoutes
                 allStops  += provStops
+                serviceStartByProvider[pid] = startDate.flatMap(Self.parseServiceDate)
             }
 
             routes = allRoutes

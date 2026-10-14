@@ -105,7 +105,7 @@ struct TransitMapView: View {
                             || previewRouteIds.contains(vehicle.routeId)
                         VehicleArrow(
                             bearing: vehicle.bearing,
-                            color: routeColorIndex[vehicle.routeId] ?? .orange
+                            color: routeColorIndex[vehicle.routeId] ?? Theme.soon
                         )
                         .opacity(isHighlighted ? 1.0 : 0.3)
                     }
@@ -140,8 +140,10 @@ struct TransitMapView: View {
                             .font(.title3)
                             .padding(12)
                             .background(.regularMaterial, in: Circle())
-                            .foregroundStyle(showVehicles ? .orange : .secondary)
+                            .foregroundStyle(showVehicles ? Theme.soon : .secondary)
                     }
+                    .accessibilityLabel(Text(showVehicles ? "Masquer les véhicules" : "Afficher les véhicules"))
+                    .accessibilityAddTraits(showVehicles ? .isSelected : [])
                 }
 
                 Button { centerOnUser() } label: {
@@ -149,8 +151,9 @@ struct TransitMapView: View {
                         .font(.title3)
                         .padding(12)
                         .background(.regularMaterial, in: Circle())
-                        .foregroundStyle(isFollowingUser ? .blue : .primary)
+                        .foregroundStyle(isFollowingUser ? Theme.brandStart : .primary)
                 }
+                .accessibilityLabel(Text("Centrer sur ma position"))
             }
             .padding()
             // Push the map controls above the preview card so they don't get
@@ -168,10 +171,11 @@ struct TransitMapView: View {
             if let stop = previewStop {
                 MapStopPreviewCard(
                     stop: stop,
-                    schedule: previewSchedule,
+                    schedule: appVM.withRealtime(previewSchedule, at: stop),
                     userLocation: locationService.location,
                     isFavorite: appVM.isFavorite(stop),
-                    isLoading: isLoadingPreview
+                    isLoading: isLoadingPreview,
+                    emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
                 ) {
                     showFullSheet = true
                 } onDismiss: {
@@ -192,8 +196,11 @@ struct TransitMapView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: previewStop?.favoriteKey)
         .sheet(isPresented: $showFullSheet) {
             if let stop = previewStop {
-                NavigationStack { StopDetailView(stop: stop) }
-                    .presentationDetents([.medium, .large])
+                NavigationStack {
+                    StopDetailView(stop: stop)
+                        .appDestinations()
+                }
+                .presentationDetents([.medium, .large])
             }
         }
         .onChange(of: previewStop?.favoriteKey) { _, _ in
@@ -203,19 +210,58 @@ struct TransitMapView: View {
             Task { await loadPreviewSchedule() }
         }
         .onChange(of: locationService.location) { _, loc in
-            guard let loc, isFollowingUser else { return }
-            withAnimation { position = .region(MKCoordinateRegion(
-                center: loc.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
-            ))}
+            guard let loc else { return }
+            if isFollowingUser || initialCentering != .user {
+                if initialCentering != .user { initialCentering = .user }
+                withAnimation { position = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+                ))}
+            }
         }
         .onAppear {
-            if let loc = locationService.location { centerToLocation(loc) }
+            centerInitiallyIfNeeded()
             if routeColorIndex.isEmpty { rebuildRouteColorIndex() }
+        }
+        .onChange(of: appVM.stops.count) { _, _ in
+            centerInitiallyIfNeeded()
         }
         .onChange(of: appVM.routes) { _, _ in
             rebuildRouteColorIndex()
         }
+    }
+
+    // MARK: - Initial centering
+    //
+    // The camera used to start on a hard-coded Montreal region whatever the
+    // user's network. Now: the user's position when known; otherwise the
+    // middle of the loaded network; the first location fix then takes over.
+
+    private enum InitialCentering { case none, network, user }
+    @State private var initialCentering: InitialCentering = .none
+
+    private func centerInitiallyIfNeeded() {
+        if let loc = locationService.location {
+            guard initialCentering != .user else { return }
+            initialCentering = .user
+            centerToLocation(loc)
+        } else if initialCentering == .none, let center = networkCenter() {
+            initialCentering = .network
+            position = .region(MKCoordinateRegion(
+                center: center,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            ))
+        }
+    }
+
+    /// Median stop coordinate — robust to a few outlying stops (airport
+    /// shuttles, regional lines) that would drag a plain average away.
+    private func networkCenter() -> CLLocationCoordinate2D? {
+        let stops = appVM.stops
+        guard !stops.isEmpty else { return nil }
+        let lats = stops.map(\.lat).sorted()
+        let lons = stops.map(\.lon).sorted()
+        return CLLocationCoordinate2D(latitude: lats[lats.count / 2], longitude: lons[lons.count / 2])
     }
 
     // MARK: - Actions
@@ -261,7 +307,7 @@ struct StopPin: View {
             if stop.isStation {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5)
-                        .fill(isSelected ? Color.orange : Color.blue)
+                        .fill(isSelected ? Theme.soon : Theme.brandStart)
                         .frame(width: 22, height: 22)
                     Image(systemName: "m.circle")
                         .font(.system(size: 12, weight: .bold))
@@ -269,7 +315,7 @@ struct StopPin: View {
                 }
             } else {
                 Circle()
-                    .fill(isSelected ? Color.orange : Color.blue.opacity(0.8))
+                    .fill(isSelected ? Theme.soon : Theme.brandStart.opacity(0.8))
                     .frame(width: 11, height: 11)
                     .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
             }
@@ -277,6 +323,8 @@ struct StopPin: View {
         .buttonStyle(.plain)
         .scaleEffect(isSelected ? 1.5 : 1.0)
         .animation(.spring(duration: 0.2), value: isSelected)
+        .accessibilityLabel(String(format: String(localized: "a11y.stop"), stop.name))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -288,6 +336,12 @@ struct MapStopPreviewCard: View {
     let userLocation: CLLocation?
     let isFavorite: Bool
     let isLoading: Bool
+    var emptyNotice: String? = nil
+
+    private var emptyText: Text {
+        if schedule.isEmpty, let emptyNotice { return Text(verbatim: emptyNotice) }
+        return Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+    }
     let onOpenDetail: () -> Void
     let onDismiss: () -> Void
     let onFavoriteToggle: () -> Void
@@ -302,6 +356,10 @@ struct MapStopPreviewCard: View {
     }
 
     var body: some View {
+        content.favoriteFeedback(isFavorite)
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, 14)
@@ -332,7 +390,7 @@ struct MapStopPreviewCard: View {
                 }
                 .redacted(reason: .placeholder)
             } else if groups.isEmpty {
-                Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
+                emptyText
                     .font(.subheadline)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 14)
@@ -360,7 +418,7 @@ struct MapStopPreviewCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 11)
-                .background(Color.accentColor, in: Capsule())
+                .background(Theme.brandGradient, in: Capsule())
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
@@ -377,40 +435,42 @@ struct MapStopPreviewCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Spacing.m) {
+            // Same identity bubble as the stop screen header.
             Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: Radius.md))
+                .shadow(color: Theme.brandStart.opacity(0.3), radius: 4, x: 0, y: 2)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(stop.name)
-                    .font(.headline)
+                    .font(Typography.cardTitle)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.s) {
                     ProviderBadge(providerId: stop.providerId)
                     if let info = walkingInfo {
-                        HStack(spacing: 3) {
-                            Image(systemName: "figure.walk")
-                                .font(.caption2.weight(.semibold))
-                            Text(info)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
+                        Label(info, systemImage: "figure.walk")
+                            .font(Typography.caption.weight(.semibold))
+                            .foregroundStyle(Theme.brandStart)
                     }
                 }
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: Spacing.xs)
 
             Button(action: onFavoriteToggle) {
                 Image(systemName: isFavorite ? "star.fill" : "star")
                     .font(.title3)
-                    .foregroundStyle(isFavorite ? .yellow : .secondary)
-                    .padding(6)
+                    .foregroundStyle(isFavorite ? Theme.favorite : .secondary)
+                    .symbolEffect(.bounce, value: isFavorite)
+                    .padding(Spacing.s)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"))
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
@@ -418,6 +478,7 @@ struct MapStopPreviewCard: View {
                     .foregroundStyle(Color(.systemGray3))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("Fermer"))
         }
     }
 }
@@ -436,5 +497,6 @@ struct VehicleArrow: View {
             .padding(4)
             .background(.white.opacity(0.95), in: Circle())
             .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 0.5))
+            .accessibilityHidden(true)   // moving vehicles would flood VoiceOver
     }
 }

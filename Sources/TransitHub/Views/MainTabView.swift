@@ -24,6 +24,7 @@ struct MainTabView: View {
                 .tabItem { Label("Lignes", systemImage: "list.bullet.rectangle") }
 
         }
+        .tint(Theme.brandStart)
         .onAppear {
             locationService.requestAuthorization()
         }
@@ -39,10 +40,12 @@ struct MainTabView: View {
             guard scenePhase == .active else { return }
             liveActivityManager.refreshNow()
             await appVM.refreshRealtime()
+            liveActivityManager.applyRealtime(appVM.tripUpdatesByProvider)
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 if Task.isCancelled { return }
                 await appVM.refreshRealtime()
+                liveActivityManager.applyRealtime(appVM.tripUpdatesByProvider)
             }
         }
     }

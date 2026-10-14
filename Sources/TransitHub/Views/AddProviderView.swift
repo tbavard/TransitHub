@@ -69,7 +69,8 @@ struct AddProviderView: View {
         VStack(spacing: 16) {
             Image(systemName: "tram.circle")
                 .font(.system(size: 52))
-                .foregroundStyle(.blue)
+                .accessibilityHidden(true)   // decorative
+                .foregroundStyle(Theme.brandStart)
             Text("Recherchez un réseau de transport")
                 .font(.headline)
             Text("Tapez un nom de ville, d'agence ou un code pays (ex: Paris, RATP, CA) pour trouver des flux GTFS publics.")
@@ -135,25 +136,25 @@ struct AddProviderView: View {
                         Text("Officiel")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.green.opacity(0.15), in: Capsule())
-                            .foregroundStyle(.green)
+                            .background(Theme.statusOK.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Theme.statusOK)
                     }
                     if let status = r.status, status != "active" {
                         Text(status.capitalized)
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.15), in: Capsule())
-                            .foregroundStyle(.orange)
+                            .background(Theme.statusWarning.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Theme.statusWarning)
                     }
                 }
             }
             Spacer()
             if alreadyAdded {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.statusOK)
             } else {
                 Image(systemName: "plus.circle")
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Theme.brandStart)
             }
         }
         .contentShape(Rectangle())
@@ -162,8 +163,8 @@ struct AddProviderView: View {
     private func descriptionLine(for r: MDBFeedSearchResult) -> String {
         let loc = r.primaryLocation
         let place = [loc?.municipality, loc?.country_code].compactMap { $0 }.joined(separator: ", ")
-        if place.isEmpty { return "L'application téléchargera le flux GTFS lors de la prochaine initialisation." }
-        return "\(place) — téléchargement du flux GTFS lors de la prochaine initialisation."
+        if place.isEmpty { return String(localized: "L'application téléchargera le flux GTFS lors de la prochaine initialisation.") }
+        return String(localized: "\(place) — téléchargement du flux GTFS lors de la prochaine initialisation.")
     }
 
     // MARK: - Search
@@ -209,7 +210,7 @@ struct AddProviderView: View {
             let feed = try await svc.fetchGtfsFeed(id: result.id)
             let rt   = (try? await svc.fetchRelatedRT(gtfsId: result.id)) ?? []
             guard let provider = svc.buildProvider(from: feed, rt: rt) else {
-                errorMessage = "Ce flux n'a pas encore de fichier GTFS téléchargeable."
+                errorMessage = String(localized: "Ce flux n'a pas encore de fichier GTFS téléchargeable.")
                 return
             }
             providersStore.add(provider)

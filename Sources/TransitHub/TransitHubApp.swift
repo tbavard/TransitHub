@@ -49,20 +49,28 @@ struct LoadingView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "tram.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.blue)
+        VStack(spacing: Spacing.xxl) {
+            ZStack {
+                Circle()
+                    .fill(Theme.brandGradient)
+                    .frame(width: 96, height: 96)
+                    .shadow(color: Theme.brandStart.opacity(0.35), radius: 16, x: 0, y: 8)
+                Image(systemName: "tram.fill")
+                    .font(.system(size: 40, weight: .semibold))
+                    .accessibilityHidden(true)   // decorative
+                    .foregroundStyle(.white)
+            }
 
             Text("TransitHub")
-                .font(.largeTitle.bold())
+                .font(Typography.screenTitle)
 
             ProgressView(value: progress)
                 .progressViewStyle(.linear)
+                .tint(Theme.brandStart)
                 .frame(maxWidth: 280)
 
             Text(message)
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 280)
@@ -81,6 +89,7 @@ struct ErrorView: View {
         VStack(spacing: 20) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 52))
+                .accessibilityHidden(true)   // decorative
                 .foregroundStyle(.orange)
 
             Text("Impossible de charger les données")

@@ -64,11 +64,6 @@ struct AlertsView: View {
             }
             .navigationTitle("Avis & Retards")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if appVM.isRefreshingRealtime {
                         ProgressView().scaleEffect(0.8)
@@ -77,6 +72,7 @@ struct AlertsView: View {
                             Task { await appVM.refreshRealtime() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
+                                .accessibilityLabel(Text("Actualiser"))
                         }
                         .disabled(!hasRealtimeAccess)
                     }
@@ -96,11 +92,19 @@ struct AlertsView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+                    .background(Theme.statusCritical.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
                     .padding(.horizontal)
                     .padding(.bottom, 4)
                 }
             }
+        }
+    }
+
+    private static func sectionTitle(forSeverity level: Int) -> String {
+        switch level {
+        case 3:  return String(localized: "alerts.section.critical")
+        case 2:  return String(localized: "alerts.section.warning")
+        default: return String(localized: "alerts.section.info")
         }
     }
 
@@ -115,15 +119,15 @@ struct AlertsView: View {
             if criticalCount > 0 {
                 return ("xmark.circle.fill",
                         String(format: String(localized: "alerts.critical_count"), criticalCount),
-                        .red)
+                        Theme.statusCritical)
             } else if alertCount > 0 || delayCount > 0 {
                 let parts = [
                     alertCount > 0 ? String(format: String(localized: "alerts.alert_count"), alertCount) : nil,
                     delayCount > 0 ? String(format: String(localized: "alerts.delay_count"), delayCount) : nil
                 ].compactMap { $0 }.joined(separator: " · ")
-                return ("exclamationmark.triangle.fill", parts, .orange)
+                return ("exclamationmark.triangle.fill", parts, Theme.statusWarning)
             } else {
-                return ("checkmark.circle.fill", String(localized: "network.normal"), .green)
+                return ("checkmark.circle.fill", String(localized: "network.normal"), Theme.statusOK)
             }
         }()
 
@@ -155,7 +159,7 @@ struct AlertsView: View {
                         ForEach(affectedRoutes) { route in
                             FilterChip(
                                 label: route.shortName,
-                                color: route.routeColor,
+                                color: route.officialRouteColor,
                                 isSelected: selectedRouteFilter == route.gtfsId
                             ) {
                                 selectedRouteFilter = selectedRouteFilter == route.gtfsId ? nil : route.gtfsId
@@ -170,10 +174,19 @@ struct AlertsView: View {
             }
 
             List {
-                if !filteredAlerts.isEmpty {
-                    Section("Avis de service") {
-                        ForEach(filteredAlerts) { alert in
-                            AlertRow(alert: alert, routes: appVM.routes)
+                // One section per severity, worst first, each headed in its
+                // severity color.
+                ForEach([3, 2, 1], id: \.self) { level in
+                    let alerts = filteredAlerts.filter { $0.severityLevel == level }
+                    if !alerts.isEmpty {
+                        Section {
+                            ForEach(alerts) { alert in
+                                AlertRow(alert: alert, routes: appVM.routes)
+                            }
+                        } header: {
+                            Label(Self.sectionTitle(forSeverity: level),
+                                  systemImage: ServiceAlert.icon(forSeverity: level))
+                                .foregroundStyle(Theme.severityColor(level: level))
                         }
                     }
                 }
@@ -198,7 +211,8 @@ struct AlertsView: View {
         VStack(spacing: 20) {
             Image(systemName: "key.slash.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(.orange)
+                .accessibilityHidden(true)   // decorative
+                .foregroundStyle(Theme.statusWarning)
             Text("Clé API requise")
                 .font(.headline)
             Text("Accédez aux avis et retards en temps réel en enregistrant votre clé dans les réglages.")
@@ -252,12 +266,7 @@ struct AlertRow: View {
 
                             ForEach(alert.affectedRouteIds.prefix(4), id: \.self) { rid in
                                 if let r = route(for: rid) {
-                                    Text(r.shortName)
-                                        .font(.caption.bold())
-                                        .foregroundStyle(r.routeTextColor)
-                                        .padding(.horizontal, 5).padding(.vertical, 2)
-                                        .background(r.routeColor,
-                                                    in: RoundedRectangle(cornerRadius: 4))
+                                    RoutePill(route: r)
                                 } else {
                                     Text(rid)
                                         .font(.caption.bold())
@@ -313,11 +322,7 @@ struct DelayRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     if let r = route {
-                        Text(r.shortName)
-                            .font(.caption.bold())
-                            .foregroundStyle(r.routeTextColor)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(r.routeColor, in: RoundedRectangle(cornerRadius: 4))
+                        RoutePill(route: r)
                         Text(r.longName)
                             .font(.body.weight(.medium))
                             .lineLimit(1)
@@ -349,7 +354,7 @@ struct DelayRow: View {
 
 struct FilterChip: View {
     let label: String
-    var color: Color = .blue
+    var color: Color = Theme.brandStart
     let isSelected: Bool
     let action: () -> Void
 
@@ -359,8 +364,9 @@ struct FilterChip: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(isSelected ? color : Color(.systemFill), in: Capsule())
-                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? AnyShapeStyle(color.livelyGradient) : AnyShapeStyle(Color(.systemFill)),
+                            in: Capsule())
+                .foregroundStyle(isSelected ? color.readableForeground : .primary)
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: isSelected)

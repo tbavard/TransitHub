@@ -39,6 +39,12 @@ final class GTFSDatabase {
         GTFSDatabase(providerId: id)
     }
 
+    /// Bump when the import format changes in a way that requires existing
+    /// databases to be rebuilt (checked by `GTFSService.isDatabaseFresh`).
+    /// v2: stop_times times normalized to zero-padded "HH:MM:SS".
+    /// v3: non-timepoint stop_times kept and interpolated instead of dropped.
+    static let dataVersion = 3
+
     // MARK: State
 
     let providerId: String
@@ -200,23 +206,37 @@ final class GTFSDatabase {
     }
 
     func fetchStopsForRoute(_ routeId: String, direction: Int) throws -> [Stop] {
-        var result: [Stop] = []
-        let pid = providerId
-        // Use MIN(stop_sequence) to get a stable ordering across trips for the same route/direction
-        let sql = """
-            SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
-                   COALESCE(s.location_type,0), COALESCE(s.parent_station,''),
-                   MIN(st.stop_sequence) AS min_seq
-            FROM stops s
-            JOIN stop_times st ON s.stop_id  = st.stop_id
-            JOIN trips       t  ON st.trip_id = t.trip_id
+        // 1. Ordered stop list of every trip, deduplicated into distinct
+        //    patterns (variants: branches, short turns…). Sorting by
+        //    MIN(stop_sequence) across trips scrambled the order as soon as
+        //    variants numbered their stops differently.
+        var stopsByTrip: [String: [String]] = [:]
+        try query("""
+            SELECT st.trip_id, st.stop_id
+            FROM stop_times st
+            JOIN trips t ON st.trip_id = t.trip_id
             WHERE t.route_id = ? AND t.direction_id = ?
-            GROUP BY s.stop_id
-            ORDER BY min_seq
-        """
-        try query(sql, [routeId, direction]) { stmt in
+            ORDER BY st.trip_id, st.stop_sequence
+        """, [routeId, direction]) { stmt in
+            stopsByTrip[col(stmt, 0), default: []].append(col(stmt, 1))
+        }
+        let order = Self.mergedStopOrder(Array(Set(stopsByTrip.values)))
+
+        // 2. Stop details, then laid out in the merged order.
+        var byId: [String: Stop] = [:]
+        let pid = providerId
+        try query("""
+            SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
+                   COALESCE(s.location_type,0), COALESCE(s.parent_station,'')
+            FROM stops s
+            WHERE s.stop_id IN (
+                SELECT st.stop_id FROM stop_times st
+                JOIN trips t ON st.trip_id = t.trip_id
+                WHERE t.route_id = ? AND t.direction_id = ?
+            )
+        """, [routeId, direction]) { stmt in
             let ps = col(stmt, 5)
-            result.append(Stop(
+            let stop = Stop(
                 id:            col(stmt, 0),
                 name:          col(stmt, 1),
                 lat:           sqlite3_column_double(stmt, 2),
@@ -224,9 +244,44 @@ final class GTFSDatabase {
                 locationType:  Int(sqlite3_column_int(stmt, 4)),
                 parentStation: ps.isEmpty ? nil : ps,
                 providerId:    pid
-            ))
+            )
+            byId[stop.id] = stop
         }
-        return result
+        return order.compactMap { byId[$0] }
+    }
+
+    /// Merges the stop patterns of a route's variants into one display order.
+    /// The longest pattern is the backbone; stops from other variants are
+    /// inserted next to the backbone stop they follow (or, for a branch that
+    /// starts elsewhere, just before the first stop it shares).
+    static func mergedStopOrder(_ patterns: [[String]]) -> [String] {
+        var order: [String] = []
+        let longestFirst = patterns.sorted {
+            $0.count != $1.count ? $0.count > $1.count : $0.lexicographicallyPrecedes($1)
+        }
+        for pattern in longestFirst {
+            var cursor: Int? = nil       // insertion point after the last placed stop
+            var leading: [String] = []   // new stops seen before any known stop
+            for stop in pattern {
+                if let i = order.firstIndex(of: stop) {
+                    if leading.isEmpty {
+                        cursor = i + 1
+                    } else {
+                        order.insert(contentsOf: leading, at: i)
+                        cursor = i + leading.count + 1
+                        leading = []
+                    }
+                } else if let c = cursor {
+                    order.insert(stop, at: c)
+                    cursor = c + 1
+                } else if !leading.contains(stop) {
+                    leading.append(stop)
+                }
+            }
+            // Pattern shares no stop with what's already placed.
+            order.append(contentsOf: leading)
+        }
+        return order
     }
 
     func fetchScheduledDepartures(for tripIds: [String]) throws -> [String: [Int: String]] {
@@ -251,29 +306,55 @@ final class GTFSDatabase {
         return result
     }
 
-    func fetchSchedule(stopId: String, serviceIds: [String]) throws -> [ScheduleEntry] {
+    /// Departures at a stop for the current service window: today's services,
+    /// plus yesterday's after-midnight trips (GTFS times ≥ 24:00) re-expressed
+    /// on today's clock ("25:10:00" → "01:10:00"). Sorted by departure time.
+    func fetchSchedule(stopId: String, services: ActiveServices) throws -> [ScheduleEntry] {
+        let today = try fetchDepartures(stopId: stopId, serviceIds: services.today,
+                                        fromPreviousServiceDay: false)
+        let overnight = try fetchDepartures(stopId: stopId, serviceIds: services.yesterday,
+                                            fromPreviousServiceDay: true)
+        return (overnight + today).sorted { $0.departureTime < $1.departureTime }
+    }
+
+    private func fetchDepartures(stopId: String, serviceIds: [String],
+                                 fromPreviousServiceDay: Bool) throws -> [ScheduleEntry] {
         guard !serviceIds.isEmpty else { return [] }
         let ph = serviceIds.map { _ in "?" }.joined(separator: ",")
+        // The EXISTS clause drops the trip's last stop: at a terminus the
+        // vehicle only arrives, nobody can board. It's a primary-key lookup
+        // on (trip_id, stop_sequence), so it stays cheap.
         let sql = """
             SELECT st.departure_time, st.trip_id, t.trip_headsign,
-                   t.route_id, r.route_short_name, COALESCE(r.route_color,'')
+                   t.route_id, r.route_short_name, COALESCE(r.route_color,''),
+                   COALESCE(t.direction_id, 0), st.stop_sequence
             FROM stop_times st
             JOIN trips  t ON st.trip_id  = t.trip_id
             JOIN routes r ON t.route_id  = r.route_id
             WHERE st.stop_id = ? AND t.service_id IN (\(ph))
+              AND st.departure_time >= ?
+              AND EXISTS (SELECT 1 FROM stop_times nx
+                          WHERE nx.trip_id = st.trip_id
+                            AND nx.stop_sequence > st.stop_sequence)
             ORDER BY st.departure_time
         """
         var params: [Any] = [stopId]
         params.append(contentsOf: serviceIds)
+        // "00:00:00" lower bound also excludes rows left without a time.
+        params.append(fromPreviousServiceDay ? "24:00:00" : "00:00:00")
         var result: [ScheduleEntry] = []
         try query(sql, params) { stmt in
+            let raw = col(stmt, 0)
+            let time = fromPreviousServiceDay ? (GTFSTime.shiftedFromPreviousDay(raw) ?? raw) : raw
             result.append(ScheduleEntry(
-                departureTime:  col(stmt, 0),
+                departureTime:  time,
                 tripId:         col(stmt, 1),
                 headsign:       col(stmt, 2),
                 routeId:        col(stmt, 3),
                 routeShortName: col(stmt, 4),
-                routeColor:     col(stmt, 5)
+                routeColor:     col(stmt, 5),
+                directionId:    Int(sqlite3_column_int(stmt, 6)),
+                stopSequence:   Int(sqlite3_column_int(stmt, 7))
             ))
         }
         return result
@@ -294,6 +375,8 @@ final class GTFSDatabase {
         let departureTime: String   // at from_stop
         let arrivalTime: String     // at to_stop
         let stopCount: Int          // inclusive of both ends
+        let fromSequence: Int
+        let toSequence: Int
     }
 
     /// Finds trips that visit one of `fromStopIds` and later (higher stop_sequence)
@@ -319,7 +402,8 @@ final class GTFSDatabase {
                    t.trip_headsign,
                    st1.stop_id, st2.stop_id,
                    st1.departure_time, st2.arrival_time,
-                   (st2.stop_sequence - st1.stop_sequence + 1) AS stops_between
+                   (st2.stop_sequence - st1.stop_sequence + 1) AS stops_between,
+                   st1.stop_sequence, st2.stop_sequence
             FROM stop_times st1
             JOIN stop_times st2 ON st2.trip_id = st1.trip_id
                                  AND st2.stop_sequence > st1.stop_sequence
@@ -329,6 +413,7 @@ final class GTFSDatabase {
               AND st2.stop_id IN (\(toPh))
               AND t.service_id IN (\(svcPh))
               AND st1.departure_time >= ?
+              AND st2.arrival_time <> ''
             ORDER BY st1.departure_time ASC, stops_between ASC
             LIMIT ?
         """
@@ -353,10 +438,21 @@ final class GTFSDatabase {
                 toStopId:       col(stmt, 7),
                 departureTime:  col(stmt, 8),
                 arrivalTime:    col(stmt, 9),
-                stopCount:      Int(sqlite3_column_int(stmt, 10))
+                stopCount:      Int(sqlite3_column_int(stmt, 10)),
+                fromSequence:   Int(sqlite3_column_int(stmt, 11)),
+                toSequence:     Int(sqlite3_column_int(stmt, 12))
             ))
         }
         return result
+    }
+
+    /// Today's and yesterday's active services — see `ActiveServices`.
+    func fetchActiveServices(for date: Date = .init()) throws -> ActiveServices {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date
+        return ActiveServices(
+            today:     try fetchActiveServiceIds(for: date),
+            yesterday: try fetchActiveServiceIds(for: yesterday)
+        )
     }
 
     func fetchActiveServiceIds(for date: Date = .init()) throws -> [String] {
@@ -392,6 +488,22 @@ final class GTFSDatabase {
             count = Int(sqlite3_column_int64(stmt, 0))
         }
         return count
+    }
+
+    /// Earliest service date of this feed (YYYYMMDD): MIN start_date in
+    /// `calendar` and MIN added date in `calendar_dates`. Agencies often
+    /// publish the next service period before it starts (e.g. RTL), so this
+    /// can lie in the future. Read on demand — no re-import needed.
+    func fetchFeedStartDate() throws -> String? {
+        var calStart: String?
+        var cdStart:  String?
+        try query("SELECT MIN(start_date) FROM calendar") { stmt in
+            let v = col(stmt, 0); if !v.isEmpty { calStart = v }
+        }
+        try query("SELECT MIN(date) FROM calendar_dates WHERE exception_type = 1") { stmt in
+            let v = col(stmt, 0); if !v.isEmpty { cdStart = v }
+        }
+        return [calStart, cdStart].compactMap { $0 }.min()
     }
 
     /// Returns the latest service date covered by this feed (YYYYMMDD), derived
@@ -480,6 +592,58 @@ final class GTFSDatabase {
     func finalizeStopTimeInsert() {
         sqlite3_finalize(stopTimeStmt)
         stopTimeStmt = nil
+    }
+
+    /// Fills stop_times rows imported without times (non-timepoint stops) by
+    /// linear interpolation between the surrounding timed stops of the same
+    /// trip. Works in chunks of trips to keep memory bounded on large feeds.
+    func interpolateMissingStopTimes() throws {
+        var tripIds: [String] = []
+        try query("SELECT DISTINCT trip_id FROM stop_times WHERE departure_time = ''") { stmt in
+            tripIds.append(col(stmt, 0))
+        }
+        guard !tripIds.isEmpty else { return }
+
+        var update: OpaquePointer?
+        let sql = "UPDATE stop_times SET arrival_time = ?, departure_time = ? WHERE trip_id = ? AND stop_sequence = ?"
+        guard sqlite3_prepare_v2(db, sql, -1, &update, nil) == SQLITE_OK else {
+            throw GTFSError.databaseError("Prepare interpolation: \(String(cString: sqlite3_errmsg(db)))")
+        }
+        defer { sqlite3_finalize(update) }
+
+        try beginTransaction()
+        do {
+            for start in stride(from: 0, to: tripIds.count, by: 500) {
+                let chunk = Array(tripIds[start..<min(start + 500, tripIds.count)])
+                let ph = chunk.map { _ in "?" }.joined(separator: ",")
+                var rowsByTrip: [String: [(seq: Int, time: String)]] = [:]
+                try query(
+                    "SELECT trip_id, stop_sequence, departure_time FROM stop_times WHERE trip_id IN (\(ph)) ORDER BY trip_id, stop_sequence",
+                    chunk
+                ) { stmt in
+                    rowsByTrip[col(stmt, 0), default: []].append(
+                        (seq: Int(sqlite3_column_int(stmt, 1)), time: col(stmt, 2))
+                    )
+                }
+                for (tripId, rows) in rowsByTrip {
+                    let filled = GTFSTime.interpolated(rows.map { $0.time.isEmpty ? nil : $0.time })
+                    for (row, value) in zip(rows, filled) where row.time.isEmpty {
+                        guard let value else { continue }   // no anchor on one side
+                        sqlite3_bind_text(update, 1, value,  -1, GTFSDatabase.transient)
+                        sqlite3_bind_text(update, 2, value,  -1, GTFSDatabase.transient)
+                        sqlite3_bind_text(update, 3, tripId, -1, GTFSDatabase.transient)
+                        sqlite3_bind_int64(update, 4, Int64(row.seq))
+                        sqlite3_step(update)
+                        sqlite3_reset(update)
+                        sqlite3_clear_bindings(update)
+                    }
+                }
+            }
+            try commit()
+        } catch {
+            rollback()
+            throw error
+        }
     }
 
     // MARK: - Internal helpers

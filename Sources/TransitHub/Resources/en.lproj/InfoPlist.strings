@@ -1,0 +1,2 @@
+/* Location permission prompt (Info.plist NSLocationWhenInUseUsageDescription). */
+"NSLocationWhenInUseUsageDescription" = "TransitHub uses your location to show nearby stops and guide you to them.";

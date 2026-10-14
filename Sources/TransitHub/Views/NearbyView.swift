@@ -5,7 +5,6 @@ struct NearbyView: View {
     @EnvironmentObject var appVM: AppViewModel
     @EnvironmentObject var providersStore: UserProvidersStore
     @ObservedObject var locationService: LocationService
-    @State private var selectedStop: Stop?
     @State private var schedulesByStop: [String: [ScheduleEntry]] = [:]
     @State private var isLoadingSchedules = false
 
@@ -33,19 +32,7 @@ struct NearbyView: View {
                 }
             }
             .navigationTitle("À proximité")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
-            .sheet(item: $selectedStop) { stop in
-                NavigationStack {
-                    StopDetailView(stop: stop)
-                }
-                .presentationDetents([.medium, .large])
-            }
+            .appDestinations()
         }
         .task(id: stopsKey) {
             await loadSchedules()
@@ -61,17 +48,24 @@ struct NearbyView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(nearestStops) { stop in
-                    Button { selectedStop = stop } label: {
+                    NavigationLink(value: AppDestination.stop(stop)) {
                         TransitStopCard(
                             stop: stop,
-                            schedule: schedulesByStop[stop.id] ?? [],
+                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
                             userLocation: locationService.location,
                             isFavorite: appVM.isFavorite(stop),
                             isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,
-                            maxRoutes: 4
+                            maxRoutes: 4,
+                            emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
                         )
                     }
                     .buttonStyle(.plain)
+                    // Same gentle fade/scale as the dashboard cards.
+                    .scrollTransition { content, phase in
+                        content
+                            .opacity(phase.isIdentity ? 1 : 0.4)
+                            .scaleEffect(phase.isIdentity ? 1 : 0.96)
+                    }
                     .contextMenu {
                         Button {
                             withAnimation { appVM.toggleFavorite(stop) }
@@ -112,7 +106,8 @@ struct NearbyView: View {
         VStack(spacing: 20) {
             Image(systemName: "location.slash.circle.fill")
                 .font(.system(size: 56))
-                .foregroundStyle(.orange)
+                .accessibilityHidden(true)   // decorative
+                .foregroundStyle(Theme.statusWarning)
             Text("Localisation désactivée")
                 .font(.headline)
             Text("Autorisez l'accès à votre position pour voir les arrêts à proximité.")

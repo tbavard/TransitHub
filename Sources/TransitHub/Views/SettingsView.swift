@@ -94,7 +94,7 @@ struct SettingsView: View {
             if provider.needsRealtimeKey
                 && GTFSRealtimeService.forProvider(provider).apiKey.isEmpty {
                 Image(systemName: "key.slash")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.statusWarning)
                     .font(.caption)
             }
         }
@@ -331,7 +331,7 @@ struct ProviderDetailView: View {
                         onChange()
                     }
                 }
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
                 Button("Effacer et réimporter", role: .destructive) {
                     showClearConfirm = true
                 }
@@ -405,9 +405,9 @@ struct ProviderDetailView: View {
 
     private var authHint: String {
         if let name = provider.rtApiKeyParamName {
-            return "Ce flux requiert un paramètre « \(name) »."
+            return String(localized: "Ce flux requiert un paramètre « \(name) ».")
         }
-        return "Ce flux requiert une clé d'authentification."
+        return String(localized: "Ce flux requiert une clé d'authentification.")
     }
 
     private func saveRTConfig() {
@@ -444,7 +444,7 @@ struct APIKeyStatusBadge: View {
             case .idle:
                 if keySaved {
                     Label("Clé enregistrée", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Theme.statusOK)
                 }
             case .testing:
                 Label("Test en cours…", systemImage: "clock")
@@ -452,15 +452,15 @@ struct APIKeyStatusBadge: View {
             case .success(let count):
                 Label(
                     count == 0
-                        ? "Connexion réussie"
-                        : "Connexion réussie — \(count) véhicules actifs",
+                        ? String(localized: "Connexion réussie")
+                        : String(localized: "Connexion réussie — \(count) véhicules actifs"),
                     systemImage: "checkmark.circle.fill"
                 )
-                .foregroundStyle(.green)
+                .foregroundStyle(Theme.statusOK)
             case .failure(let msg):
                 VStack(alignment: .leading, spacing: 2) {
                     Label("Connexion échouée", systemImage: "xmark.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.statusCritical)
                     Text(msg)
                         .font(.caption2)
                         .foregroundStyle(.secondary)

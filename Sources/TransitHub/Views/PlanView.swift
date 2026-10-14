@@ -46,6 +46,11 @@ struct PlanView: View {
                 }
             }
             .navigationTitle("Itinéraire")
+            // Success / error tap when a search finishes.
+            .sensoryFeedback(trigger: isPlanning) { wasPlanning, planning in
+                guard wasPlanning, !planning else { return nil }
+                return planError == nil ? .success : .error
+            }
             .sheet(item: $pickerRole) { role in
                 PlanStopPickerView { endpoint in
                     switch role {
@@ -64,18 +69,17 @@ struct PlanView: View {
     private var endpointsCard: some View {
         ZStack(alignment: .trailing) {
             VStack(spacing: 0) {
-                endpointRow(label: "De", icon: "circle.fill", iconColor: .blue,
+                endpointRow(label: "De", icon: "circle.fill", iconColor: Theme.brandStart,
                             endpoint: origin) {
                     pickerRole = .origin
                 }
                 Divider().padding(.leading, 48)
-                endpointRow(label: "À", icon: "mappin.circle.fill", iconColor: .red,
+                endpointRow(label: "À", icon: "mappin.circle.fill", iconColor: Theme.statusCritical,
                             endpoint: destination) {
                     pickerRole = .destination
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 16))
+            .card()
 
             Button { swapEndpoints() } label: {
                 Image(systemName: "arrow.up.arrow.down")
@@ -156,9 +160,8 @@ struct PlanView: View {
                     .datePickerStyle(.compact)
             }
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 16))
+        .padding(Spacing.lg)
+        .card()
     }
 
     // MARK: - Plan button
@@ -178,7 +181,7 @@ struct PlanView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(isReadyToPlan ? Color.accentColor : Color(.systemGray3),
+            .background(isReadyToPlan ? AnyShapeStyle(Theme.brandGradient) : AnyShapeStyle(Color(.systemGray3)),
                         in: Capsule())
             .foregroundStyle(.white)
         }
@@ -211,18 +214,18 @@ struct PlanView: View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.statusWarning)
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
         }
         .padding(14)
-        .background(Color.orange.opacity(0.08),
+        .background(Theme.statusWarning.opacity(0.08),
                     in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Theme.statusWarning.opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -292,10 +295,11 @@ struct ItineraryCard: View {
                     in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(isTracked ? Color.accentColor.opacity(0.5)
+                .strokeBorder(isTracked ? Theme.brandStart.opacity(0.5)
                                         : Color(.separator).opacity(0.25),
                               lineWidth: isTracked ? 1.5 : 0.5)
         )
+        .trackingFeedback(isTracked)
     }
 
     private var goButton: some View {
@@ -314,7 +318,7 @@ struct ItineraryCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(isTracked ? Color(.systemFill) : Color.accentColor,
+            .background(isTracked ? AnyShapeStyle(Color(.systemFill)) : AnyShapeStyle(Theme.brandGradient),
                         in: Capsule())
             .foregroundStyle(isTracked ? Color.primary : .white)
         }
@@ -336,14 +340,37 @@ struct ItineraryCard: View {
                         .font(.title3.weight(.bold))
                         .monospacedDigit()
                 }
-                Text("Durée : \(itin.totalMinutes) min")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: Spacing.s) {
+                    Text("Durée : \(itin.totalMinutes) min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let delay = itin.transitLegs.first?.liveDelaySeconds {
+                        liveBadge(delayMinutes: Int((Double(delay) / 60).rounded()))
+                    }
+                }
             }
             Spacer()
             if let t = itin.transitLegs.first {
                 RoutePill(shortName: t.routeShortName, color: t.routeColor)
             }
+        }
+    }
+
+    /// Times above already include the live delay; this says so.
+    private func liveBadge(delayMinutes m: Int) -> some View {
+        HStack(spacing: Spacing.xs) {
+            LiveIndicator()
+            Group {
+                if m >= 1 {
+                    Text("Retard \(m) min")
+                } else if m <= -1 {
+                    Text("Avance \(-m) min")
+                } else {
+                    Text("À l'heure")
+                }
+            }
+            .font(Typography.badge)
+            .foregroundStyle(m >= 1 ? Theme.soon : Theme.brandEnd)
         }
     }
 
@@ -376,7 +403,8 @@ struct ItineraryCard: View {
 
     private var summaryLine: String? {
         guard let t = itin.transitLegs.first else { return nil }
-        let stopsWord = t.numStops - 1 == 1 ? "arrêt" : "arrêts"
-        return "\(t.fromStop.name) → \(t.toStop.name) · \(t.numStops - 1) \(stopsWord)"
+        let count = t.numStops - 1
+        let stopsText = count == 1 ? String(localized: "1 arrêt") : String(localized: "\(count) arrêts")
+        return "\(t.fromStop.name) → \(t.toStop.name) · \(stopsText)"
     }
 }

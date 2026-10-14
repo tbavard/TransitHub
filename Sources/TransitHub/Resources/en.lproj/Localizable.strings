@@ -31,6 +31,9 @@
 "Réessayer" = "Retry";
 "Aucun départ aujourd'hui" = "No departures today";
 "Aucun service actif pour cet arrêt." = "No active service for this stop.";
+"Aucun service actif pour la ligne %@ à cet arrêt." = "No active service for line %@ at this stop.";
+"Lignes affichées" = "Lines shown";
+"Toutes les lignes" = "All lines";
 "Prochain départ" = "Next departure";
 
 // Computed strings — countdown
@@ -125,7 +128,6 @@
 "Annuler" = "Cancel";
 
 // MARK: - AddProviderView
-"Ajouter un fournisseur" = "Add a provider";
 "Fermer" = "Close";
 "Ville, agence, pays…" = "City, agency, country…";
 "Catalogue indisponible" = "Catalog unavailable";
@@ -161,6 +163,8 @@
 "live.n_minutes" = "In %d minutes";
 "live.leave_now" = "Leave now (%d min walk)";
 "live.departed" = "Departed";
+"live.canceled" = "Departure canceled";
+"live.delayed_suffix" = "%@ · %d min late";
 
 "Partir" = "Go";
 "Arrêter le suivi" = "Stop tracking";
@@ -174,7 +178,6 @@
 "Partir maintenant" = "Leave now";
 "Partir à…" = "Leave at…";
 "Heure de départ" = "Departure time";
-"Recherche…" = "Searching…";
 "Trouver un itinéraire" = "Find a route";
 "Itinéraire" = "Directions";
 "%lld itinéraire(s)" = "%lld route(s)";
@@ -201,3 +204,110 @@
 "gtfs.error.invalid_archive" = "Invalid GTFS archive: stops.txt not found";
 "gtfs.error.empty_table" = "Incomplete import — table %@ is empty";
 "gtfs.error.no_calendar" = "Incomplete import — neither calendar nor calendar_dates found";
+
+// MARK: - Stop & route redesign
+"Station" = "Station";
+"Arrêt" = "Stop";
+"Favori" = "Favorite";
+"Favoriser" = "Favorite";
+"Partager" = "Share";
+"Localisation" = "Location";
+"Puis" = "Then";
+"Plus de départ aujourd'hui" = "No more departures today";
+"Départ" = "Origin";
+"Terminus" = "Terminus";
+"Mes arrêts" = "My stops";
+"Suivre ce départ" = "Track this departure";
+
+// MARK: - Live departures
+"Annulé" = "Canceled";
+"En direct" = "Live";
+"Retard %lld min" = "%lld min late";
+"Avance %lld min" = "%lld min early";
+"À l'heure" = "On time";
+
+// MARK: - Accessibility
+"countdown.now_short" = "now";
+"a11y.route" = "Line %@";
+"a11y.towards" = "towards %@";
+"a11y.now" = "now";
+"a11y.in_minutes" = "in %d minutes";
+"a11y.live" = "live";
+"a11y.late" = "%d minutes late";
+"a11y.early" = "%d minutes early";
+"a11y.on_time" = "on time";
+"a11y.canceled" = "canceled";
+"a11y.departed" = "departed";
+"a11y.next" = "next departure";
+"a11y.no_more" = "no more departures today";
+"a11y.at_time" = "at %@";
+"a11y.then" = "then %@";
+"a11y.origin" = "line origin";
+"a11y.terminus" = "terminus";
+"a11y.stop" = "Stop %@";
+"Actualiser" = "Refresh";
+"Centrer sur ma position" = "Center on my location";
+"Afficher les véhicules" = "Show vehicles";
+"Masquer les véhicules" = "Hide vehicles";
+
+// MARK: - Alert types (GTFS-RT effect / cause)
+"alert.generic" = "Notice";
+"alert.effect.noService" = "No service";
+"alert.effect.reducedService" = "Reduced service";
+"alert.effect.significantDelays" = "Significant delays";
+"alert.effect.detour" = "Detour";
+"alert.effect.additionalService" = "Additional service";
+"alert.effect.modifiedService" = "Modified service";
+"alert.effect.stopMoved" = "Stop moved";
+"alert.effect.accessibilityIssue" = "Accessibility";
+"alert.cause.technicalProblem" = "Technical problem";
+"alert.cause.strike" = "Strike";
+"alert.cause.demonstration" = "Demonstration";
+"alert.cause.accident" = "Accident";
+"alert.cause.holiday" = "Holiday";
+"alert.cause.weather" = "Weather";
+"alert.cause.maintenance" = "Maintenance";
+"alert.cause.construction" = "Construction";
+"alert.cause.policeActivity" = "Police activity";
+"alert.cause.medicalEmergency" = "Medical emergency";
+"alerts.section.critical" = "Major disruptions";
+"alerts.section.warning" = "Disruptions";
+"alerts.section.info" = "Information";
+"Récentes" = "Recent";
+"Ajouter aux favoris" = "Add to favorites";
+
+// MARK: - Localization audit (previously untranslated)
+"Voir tous les avis" = "See all alerts";
+"Aucun arrêt" = "No stops";
+"Ajoutez un favori ou activez la localisation pour voir les arrêts à proximité." = "Add a favorite or enable location to see nearby stops.";
+"Ajouter un réseau" = "Add a network";
+"Activer le temps réel" = "Enable real-time";
+"Positions des véhicules" = "Vehicle positions";
+"Mises à jour des trajets" = "Trip updates";
+"Clé API (paramètre URL)" = "API key (URL parameter)";
+"Clé API (en-tête HTTP)" = "API key (HTTP header)";
+"Nom du paramètre (ex. apikey)" = "Parameter name (e.g. apikey)";
+"Impossible de charger les données" = "Unable to load data";
+"Zoomez pour\nvoir les arrêts" = "Zoom in\nto see stops";
+"Voir tous les horaires" = "See full schedule";
+"+ %lld autre(s) ligne(s)" = "+ %lld more line(s)";
+"%lld/%lld trajets" = "%lld/%lld trips";
+"Cette ligne ne contient pas d'arrêts dans les données GTFS." = "This line has no stops in the GTFS data.";
+"Tramway" = "Tram";
+"Train" = "Train";
+"Traversier" = "Ferry";
+"Funiculaire" = "Funicular";
+"+1 min de retard" = "+1 min late";
+"+%lld min de retard" = "+%lld min late";
+"Aucune clé enregistrée" = "No key saved";
+"Aucun flux temps réel configuré" = "No real-time feed configured";
+"Clé invalide ou accès refusé (%@)" = "Invalid key or access denied (%@)";
+"Clé API manquante" = "Missing API key";
+"Catalogue non configuré (MobilityDBConfig.plist manquant)" = "Catalog not configured (MobilityDBConfig.plist missing)";
+"Réponse invalide : %@" = "Invalid response: %@";
+"1 arrêt" = "1 stop";
+"%lld arrêts" = "%lld stops";
+"%@ — arrêt #%@" = "%@ — stop #%@";
+
+// MARK: - Feed not started yet
+"schedule.starts_on" = "%1$@ schedules start on %2$@.";
