@@ -106,9 +106,10 @@ struct SettingsView: View {
         fmt.timeStyle = .short
         for provider in providersStore.providers {
             let db = GTFSDatabase.forProvider(provider)
-            if let attrs = try? FileManager.default.attributesOfItem(atPath: db.databaseURL.path),
-               let size = attrs[.size] as? Int64 {
-                databaseSizes[provider.id] = String(format: "%.1f MB", Double(size) / 1_048_576)
+            if db.exists {
+                // Includes the WAL side file; localized units ("12,4 Mo").
+                databaseSizes[provider.id] = ByteCountFormatter.string(
+                    fromByteCount: db.totalSizeBytes, countStyle: .file)
             } else {
                 databaseSizes[provider.id] = "–"
             }

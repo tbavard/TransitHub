@@ -77,8 +77,30 @@ final class GTFSDatabase {
         db = nil
     }
 
+    /// The database file plus SQLite's side files. In WAL mode a stale
+    /// "-wal" left next to a *new* database of the same name can be replayed
+    /// into it and corrupt it, so they must always go together.
+    static func databaseFiles(for main: URL) -> [URL] {
+        [main] + ["-wal", "-shm", "-journal"].map {
+            main.deletingLastPathComponent().appendingPathComponent(main.lastPathComponent + $0)
+        }
+    }
+
+    var databaseFiles: [URL] { Self.databaseFiles(for: databaseURL) }
+
+    /// On-disk size including the WAL (it can be as large as the database
+    /// right after an import).
+    var totalSizeBytes: Int64 {
+        databaseFiles.reduce(0) { sum, url in
+            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            return sum + ((attrs?[.size] as? Int64) ?? 0)
+        }
+    }
+
     func deleteDatabase() throws {
-        if exists { try FileManager.default.removeItem(at: databaseURL) }
+        for url in databaseFiles where FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 
     // MARK: Schema
