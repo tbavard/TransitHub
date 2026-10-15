@@ -18,6 +18,9 @@ final class AppViewModel: ObservableObject {
     init(providersStore: UserProvidersStore, dependencies: AppDependencies = .live) {
         self.providersStore = providersStore
         self.deps = dependencies
+        // Storage housekeeping before any database is opened or import runs.
+        GTFSDatabase.migrateLegacyStorage()
+        GTFSDatabase.removeStaleImportFolders()
         // Reload GTFS only when the provider SET changes (add/remove). Ignore
         // metadata-only edits like renaming the short name, otherwise each
         // keystroke in Settings would kick off a fresh download.
@@ -372,6 +375,9 @@ final class AppViewModel: ObservableObject {
         loadFavorites()
 
         let providers = providersStore.providers
+        // Drop databases of providers no longer configured (failed deletes,
+        // removals done while the app was killed…).
+        GTFSDatabase.removeOrphans(keeping: Set(providers.map { $0.id }))
 
         // Empty-state path — nothing to download, app stays idle until user adds a provider.
         guard !providers.isEmpty else {
