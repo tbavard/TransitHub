@@ -55,8 +55,77 @@ final class GTFSDatabase {
     }
 
     var databaseURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("gtfs_\(providerId).sqlite")
+        Self.storageDirectory.appendingPathComponent("gtfs_\(providerId).sqlite")
+    }
+
+    // MARK: Storage location
+    //
+    // GTFS databases are re-downloadable caches that can reach hundreds of MB.
+    // They live in Application Support (not the user-visible Documents folder)
+    // and are excluded from iCloud/device backups, per Apple's data storage
+    // guidelines. Not Caches: iOS may purge that, leaving an offline user
+    // with no schedules.
+
+    static let storageDirectory: URL = {
+        let fm = FileManager.default
+        var dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("GTFS", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true   // applies to everything inside
+        try? dir.setResourceValues(values)
+        return dir
+    }()
+
+    private static let filePrefix = "gtfs_"
+    private static let fileSuffix = ".sqlite"
+
+    /// One-time move of databases from the legacy Documents location, with
+    /// their side files, so existing users keep their data (no re-download).
+    /// Call before any database is opened.
+    static func migrateLegacyStorage() {
+        let fm = FileManager.default
+        let documents = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let names = try? fm.contentsOfDirectory(atPath: documents.path) else { return }
+        for name in names where name.hasPrefix(filePrefix) && name.hasSuffix(fileSuffix) {
+            let legacyMain = documents.appendingPathComponent(name)
+            let newMain = storageDirectory.appendingPathComponent(name)
+            let alreadyMigrated = fm.fileExists(atPath: newMain.path)
+            for (old, new) in zip(databaseFiles(for: legacyMain), databaseFiles(for: newMain))
+                where fm.fileExists(atPath: old.path) {
+                if alreadyMigrated {
+                    try? fm.removeItem(at: old)
+                } else {
+                    try? fm.moveItem(at: old, to: new)
+                }
+            }
+        }
+    }
+
+    /// Deletes databases (and side files) of providers that are no longer
+    /// configured — e.g. a removal whose delete failed.
+    static func removeOrphans(keeping providerIds: Set<String>) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: storageDirectory.path) else { return }
+        for name in names where name.hasPrefix(filePrefix) && name.hasSuffix(fileSuffix) {
+            let id = String(name.dropFirst(filePrefix.count).dropLast(fileSuffix.count))
+            guard !providerIds.contains(id) else { continue }
+            for url in databaseFiles(for: storageDirectory.appendingPathComponent(name))
+                where fm.fileExists(atPath: url.path) {
+                try? fm.removeItem(at: url)
+            }
+        }
+    }
+
+    /// Removes extraction folders left by an import interrupted by the app
+    /// being killed. Only safe before any import starts (app launch).
+    static func removeStaleImportFolders() {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory
+        guard let names = try? fm.contentsOfDirectory(atPath: tmp.path) else { return }
+        for name in names where name.hasPrefix(filePrefix) {
+            try? fm.removeItem(at: tmp.appendingPathComponent(name))
+        }
     }
 
     var exists: Bool { FileManager.default.fileExists(atPath: databaseURL.path) }
@@ -77,8 +146,30 @@ final class GTFSDatabase {
         db = nil
     }
 
+    /// The database file plus SQLite's side files. In WAL mode a stale
+    /// "-wal" left next to a *new* database of the same name can be replayed
+    /// into it and corrupt it, so they must always go together.
+    static func databaseFiles(for main: URL) -> [URL] {
+        [main] + ["-wal", "-shm", "-journal"].map {
+            main.deletingLastPathComponent().appendingPathComponent(main.lastPathComponent + $0)
+        }
+    }
+
+    var databaseFiles: [URL] { Self.databaseFiles(for: databaseURL) }
+
+    /// On-disk size including the WAL (it can be as large as the database
+    /// right after an import).
+    var totalSizeBytes: Int64 {
+        databaseFiles.reduce(0) { sum, url in
+            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            return sum + ((attrs?[.size] as? Int64) ?? 0)
+        }
+    }
+
     func deleteDatabase() throws {
-        if exists { try FileManager.default.removeItem(at: databaseURL) }
+        for url in databaseFiles where FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 
     // MARK: Schema
