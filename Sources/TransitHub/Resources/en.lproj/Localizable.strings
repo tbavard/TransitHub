@@ -178,6 +178,7 @@
 "À" = "To";
 "Partir maintenant" = "Leave now";
 "Partir à…" = "Leave at…";
+"Choisir l'heure…" = "Pick a time…";
 "Heure de départ" = "Departure time";
 "Trouver un itinéraire" = "Find a route";
 "Itinéraire" = "Directions";
@@ -190,7 +191,9 @@
 "plan.error.no_destination" = "Pick a destination.";
 "plan.error.same_endpoint" = "Origin and destination are the same.";
 "plan.error.no_location" = "Location unavailable.";
-"plan.error.no_route" = "No direct route found.";
+"plan.error.no_route" = "No route found (at most one transfer). Try another time or stop.";
+"plan.error.no_stops_origin" = "No stop of this network near the starting point.";
+"plan.error.no_stops_destination" = "No stop of this network near the destination.";
 
 // MARK: - GTFSService — progress messages (computed, use String(localized:))
 "gtfs.downloading" = "Downloading GTFS data…";
@@ -311,3 +314,9 @@
 
 // MARK: - Feed not started yet
 "schedule.starts_on" = "%1$@ schedules start on %2$@.";
+"Direct" = "Direct";
+"1 correspondance" = "1 transfer";
+"Où allez-vous ?" = "Where to?";
+"Réseau" = "Network";
+"Inverser départ et destination" = "Swap origin and destination";
+"Choisissez une destination : les prochains départs s'affichent automatiquement." = "Pick a destination: the next departures show up automatically.";

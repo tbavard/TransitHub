@@ -190,7 +190,9 @@
 "plan.error.no_destination" = "Choisissez une destination.";
 "plan.error.same_endpoint" = "Le départ et la destination sont identiques.";
 "plan.error.no_location" = "Localisation indisponible.";
-"plan.error.no_route" = "Aucun itinéraire direct trouvé.";
+"plan.error.no_route" = "Aucun itinéraire trouvé (au plus une correspondance). Essayez une autre heure ou un autre arrêt.";
+"plan.error.no_stops_origin" = "Aucun arrêt de ce réseau près du point de départ.";
+"plan.error.no_stops_destination" = "Aucun arrêt de ce réseau près de la destination.";
 
 // MARK: - GTFSService — progress messages
 "gtfs.downloading" = "Téléchargement des données GTFS…";
@@ -311,3 +313,9 @@
 
 // MARK: - Feed not started yet
 "schedule.starts_on" = "Les horaires de %1$@ commencent le %2$@.";
+"Direct" = "Direct";
+"1 correspondance" = "1 correspondance";
+"Où allez-vous ?" = "Où allez-vous ?";
+"Réseau" = "Réseau";
+"Inverser départ et destination" = "Inverser départ et destination";
+"Choisissez une destination : les prochains départs s'affichent automatiquement." = "Choisissez une destination : les prochains départs s'affichent automatiquement.";

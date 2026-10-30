@@ -537,6 +537,81 @@ final class GTFSDatabase {
         return result
     }
 
+    /// Trip segments for a one-transfer search. Exactly one end is pinned:
+    /// - `fromStopIds` set, `toStopIds` nil → first legs (board near the origin,
+    ///   alight anywhere later on the trip);
+    /// - `toStopIds` set, `fromStopIds` nil → last legs (board anywhere,
+    ///   alight near the destination).
+    /// Only segments boarding at or after `afterTime` and arriving by
+    /// `untilTime` are returned ("HH:MM:SS", may exceed 24h).
+    func fetchSegments(
+        fromStopIds: [String]? = nil,
+        toStopIds:   [String]? = nil,
+        serviceIds:  [String],
+        afterTime:   String,
+        untilTime:   String,
+        limit:       Int
+    ) throws -> [DirectTripRow] {
+        guard !serviceIds.isEmpty else { return [] }
+        let pinned = fromStopIds ?? toStopIds ?? []
+        guard !pinned.isEmpty else { return [] }
+
+        func placeholders(_ n: Int) -> String { Array(repeating: "?", count: n).joined(separator: ",") }
+
+        let stopCondition = fromStopIds != nil
+            ? "st1.stop_id IN (\(placeholders(pinned.count)))"
+            : "st2.stop_id IN (\(placeholders(pinned.count)))"
+
+        let sql = """
+            SELECT t.trip_id, t.route_id,
+                   r.route_short_name, r.route_long_name, COALESCE(r.route_color,''),
+                   t.trip_headsign,
+                   st1.stop_id, st2.stop_id,
+                   st1.departure_time, st2.arrival_time,
+                   (st2.stop_sequence - st1.stop_sequence + 1) AS stops_between,
+                   st1.stop_sequence, st2.stop_sequence
+            FROM stop_times st1
+            JOIN stop_times st2 ON st2.trip_id = st1.trip_id
+                                 AND st2.stop_sequence > st1.stop_sequence
+            JOIN trips  t ON t.trip_id = st1.trip_id
+            JOIN routes r ON r.route_id = t.route_id
+            WHERE \(stopCondition)
+              AND t.service_id IN (\(placeholders(serviceIds.count)))
+              AND st1.departure_time >= ?
+              AND st2.arrival_time <> ''
+              AND st2.arrival_time <= ?
+            ORDER BY st1.departure_time ASC
+            LIMIT ?
+        """
+
+        var params: [Any] = []
+        params.append(contentsOf: pinned)
+        params.append(contentsOf: serviceIds)
+        params.append(afterTime)
+        params.append(untilTime)
+        params.append(limit)
+
+        var result: [DirectTripRow] = []
+        try query(sql, params) { stmt in
+            result.append(DirectTripRow(
+                tripId:         col(stmt, 0),
+                routeId:        col(stmt, 1),
+                routeShortName: col(stmt, 2),
+                routeLongName:  col(stmt, 3),
+                routeColor:     col(stmt, 4),
+                headsign:       col(stmt, 5),
+                fromStopId:     col(stmt, 6),
+                toStopId:       col(stmt, 7),
+                departureTime:  col(stmt, 8),
+                arrivalTime:    col(stmt, 9),
+                stopCount:      Int(sqlite3_column_int(stmt, 10)),
+                fromSequence:   Int(sqlite3_column_int(stmt, 11)),
+                toSequence:     Int(sqlite3_column_int(stmt, 12))
+            ))
+        }
+        return result
+    }
+
     /// Today's and yesterday's active services — see `ActiveServices`.
     func fetchActiveServices(for date: Date = .init()) throws -> ActiveServices {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? date

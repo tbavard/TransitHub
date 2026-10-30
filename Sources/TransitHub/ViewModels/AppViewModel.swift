@@ -188,18 +188,20 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Trip planning
 
-    /// Plans direct (single-vehicle) trips between origin and destination. MVP — no transfers.
+    /// Plans trips (direct, or with one transfer) on a single network.
     func planTrip(
         from origin: PlanEndpoint,
         to destination: PlanEndpoint,
+        providerId: String,
         departAt: Date = Date()
     ) async throws -> [TripItinerary] {
         let snapshotStops = stops
         let loc = userLocation
         let liveTrips = tripUpdatesByProvider
-        return try await TripPlanner.planDirect(
+        return try await TripPlanner.plan(
             from: origin,
             to: destination,
+            providerId: providerId,
             allStops: snapshotStops,
             userLocation: loc,
             departAt: departAt,

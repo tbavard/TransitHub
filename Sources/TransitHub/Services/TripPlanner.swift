@@ -1,20 +1,23 @@
 import Foundation
 import CoreLocation
 
-/// Direct-trip planner (MVP — no transfers).
+/// Single-network trip planner: direct trips plus trips with ONE transfer.
 ///
 /// Strategy:
 /// 1. Resolve origin + destination to a small cluster of nearby stops (walking distance)
 ///    so the user doesn't have to pick the exact stop on the correct street side.
-/// 2. Query GTFS for trips that visit an origin stop and later a destination stop on
-///    the same vehicle (single JOIN on stop_times by trip_id).
-/// 3. For each candidate trip, prepend a walk leg from the user/origin to the boarding
-///    stop, and append a walk leg from the alighting stop to the destination.
-/// 4. Sort by arrival time at destination, dedupe by route+headsign, keep top N.
+/// 2. Direct: trips that visit an origin stop and later a destination stop on the same
+///    vehicle (single JOIN on stop_times by trip_id).
+/// 3. One transfer: pull every segment boarding near the origin ("first legs") and every
+///    segment alighting near the destination ("last legs") in a time window, then join
+///    them in memory where a first leg's alighting stop is the same as — or within
+///    `transferRadiusMeters` walking of — a last leg's boarding stop, with enough time
+///    to walk and board.
+/// 4. Prepend/append walk legs, sort by arrival, dedupe, drop transfers that a direct
+///    trip beats, keep top N.
 ///
-/// Multi-provider: if endpoints are served by different providers we plan each
-/// side per-provider and return the earliest arriving results. Transfers between
-/// providers are out of scope for this MVP.
+/// One network at a time: the caller picks the provider; stops of other providers
+/// are ignored.
 enum TripPlanner {
 
     // MARK: - Tunables
@@ -28,8 +31,27 @@ enum TripPlanner {
     /// Max itineraries returned.
     static let resultLimit: Int = 8
 
-    /// Max raw trip candidates pulled from DB per provider before post-filtering.
+    /// Max raw trip candidates pulled from DB per direct query.
     static let dbRowLimit: Int = 40
+
+    /// Max walk between alighting and re-boarding stops of a transfer.
+    static let transferRadiusMeters: Double = 200
+
+    /// Slack added to every transfer on top of the walk (seconds).
+    static let transferBufferSeconds: Int = 120
+
+    /// Longest wait accepted at the transfer stop (seconds).
+    static let maxTransferWaitSeconds: Int = 45 * 60
+
+    /// How far after the departure time the second leg may arrive (seconds).
+    static let transferWindowSeconds: Int = 2 * 3600
+
+    /// Row caps for the segment queries (earliest departures kept first).
+    static let firstLegRowLimit: Int = 12_000
+    static let lastLegRowLimit: Int = 24_000
+
+    /// Max transfer itineraries built (each applies realtime lookups).
+    static let transferItineraryLimit: Int = 12
 
     // MARK: - Resolution
 
@@ -87,11 +109,12 @@ enum TripPlanner {
 
     // MARK: - Planning entry point
 
-    /// Runs the direct-trip search. Safe to call from a detached task —
-    /// it opens and closes per-provider DB handles internally.
-    static func planDirect(
+    /// Runs the search on one network. Safe to call from a detached task —
+    /// it opens and closes the provider's DB handle internally.
+    static func plan(
         from origin: PlanEndpoint,
         to destination: PlanEndpoint,
+        providerId: String,
         allStops: [Stop],
         userLocation: CLLocation?,
         departAt: Date,
@@ -100,152 +123,340 @@ enum TripPlanner {
 
         if origin == destination { throw TripPlanError.sameEndpoint }
 
-        let resolvedOrigin      = try resolve(origin,      userLocation: userLocation, allStops: allStops)
-        let resolvedDestination = try resolve(destination, userLocation: userLocation, allStops: allStops)
+        let stops = allStops.filter { $0.providerId == providerId }
+        let resolvedOrigin      = try resolve(origin,      userLocation: userLocation, allStops: stops)
+        let resolvedDestination = try resolve(destination, userLocation: userLocation, allStops: stops)
 
-        // Intersect providers: a direct trip can only happen if both endpoints
-        // are served by the same provider.
-        let commonProviders = Set(resolvedOrigin.stopsByProvider.keys)
-            .intersection(resolvedDestination.stopsByProvider.keys)
-        guard !commonProviders.isEmpty else { throw TripPlanError.noRouteFound }
+        guard let fromStops = resolvedOrigin.stopsByProvider[providerId], !fromStops.isEmpty
+        else { throw TripPlanError.noStopsNearOrigin }
+        guard let toStops = resolvedDestination.stopsByProvider[providerId], !toStops.isEmpty
+        else { throw TripPlanError.noStopsNearDestination }
 
-        var allItineraries: [TripItinerary] = []
+        let data = await fetchPlanDataDetached(
+            providerId:  providerId,
+            fromStopIds: fromStops.map(\.id),
+            toStopIds:   toStops.map(\.id),
+            departAt:    departAt
+        )
+        let liveTrips = tripUpdates[providerId] ?? [:]
+        let stopsById = Dictionary(stops.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-        for providerId in commonProviders {
-            guard let fromStops = resolvedOrigin.stopsByProvider[providerId],
-                  let toStops   = resolvedDestination.stopsByProvider[providerId] else { continue }
+        let originCoord = resolvedOrigin.coordinate
+        let destCoord   = resolvedDestination.coordinate
+        let originName  = resolvedOrigin.displayName
+        let destName    = resolvedDestination.displayName
 
-            let rows = await fetchRowsDetached(
-                providerId: providerId,
-                fromStopIds: fromStops.map(\.id),
-                toStopIds:   toStops.map(\.id),
-                departAt:    departAt
-            )
-            let liveTrips = tripUpdates[providerId] ?? [:]
+        // Direct trips.
+        var direct: [TripItinerary] = []
+        for (row, serviceDay) in data.direct {
+            guard let built = buildTransitLeg(row: row, serviceDay: serviceDay, providerId: providerId,
+                                              stopsById: stopsById, liveTrips: liveTrips)
+            else { continue }
+            let walkTo = walkLeg(fromName: originName, toName: built.leg.fromStop.name,
+                                 from: originCoord, to: built.leg.fromStop.coordinate)
+            let walkFrom = walkLeg(fromName: built.leg.toStop.name, toName: destName,
+                                   from: built.leg.toStop.coordinate, to: destCoord)
+            direct.append(assemble(walkTo: walkTo, transits: [built], transferWalk: nil, walkFrom: walkFrom))
+        }
 
-            let byId: [String: Stop] = Dictionary(uniqueKeysWithValues:
-                (fromStops + toStops).map { ($0.id, $0) }
-            )
+        // One-transfer trips.
+        let transfers = transferItineraries(
+            data: data, providerId: providerId, stops: stops, stopsById: stopsById,
+            liveTrips: liveTrips, originName: originName, originCoord: originCoord,
+            destName: destName, destCoord: destCoord)
 
-            let originCoord = resolvedOrigin.coordinate
-            let destCoord   = resolvedDestination.coordinate
-            let originName  = resolvedOrigin.displayName
-            let destName    = resolvedDestination.displayName
+        // A transfer is only worth showing if it beats every direct option.
+        let bestDirectArrival = direct.map(\.arrivalDate).min()
+        let usefulTransfers = transfers.filter { itin in
+            guard let best = bestDirectArrival else { return true }
+            return itin.arrivalDate < best
+        }
 
-            for (row, serviceDay) in rows {
-                guard let fromStop = byId[row.fromStopId],
-                      let toStop   = byId[row.toStopId] else { continue }
+        let all = direct + usefulTransfers
+        guard !all.isEmpty else { throw TripPlanError.noRouteFound }
 
-                // Live predictions at both ends; a canceled trip or a skipped
-                // boarding/alighting stop makes the option unusable.
-                let scheduledDeparture = absoluteDate(for: row.departureTime, reference: serviceDay)
-                let scheduledArrival   = absoluteDate(for: row.arrivalTime, reference: serviceDay)
-                let boarding = RealtimeScheduleMerger.status(
-                    tripId: row.tripId, stopId: row.fromStopId, stopSequence: row.fromSequence,
-                    scheduled: scheduledDeparture, updates: liveTrips)
-                let alighting = RealtimeScheduleMerger.status(
-                    tripId: row.tripId, stopId: row.toStopId, stopSequence: row.toSequence,
-                    scheduled: scheduledArrival, updates: liveTrips)
-                if [boarding, alighting].contains(where: { $0 == .canceled || $0 == .skipped }) {
-                    continue
+        // Dedupe by (routes + headsigns + boarding stop): we only want the soonest
+        // trip of each "option" so the list isn't flooded by the next 10 buses.
+        var seen: Set<String> = []
+        let sorted = all.sorted { a, b in
+            if a.arrivalDate != b.arrivalDate { return a.arrivalDate < b.arrivalDate }
+            return a.transitLegs.count < b.transitLegs.count
+        }
+        var result: [TripItinerary] = []
+        for itin in sorted {
+            let key = itin.transitLegs
+                .map { "\($0.routeShortName)|\($0.headsign)|\($0.fromStop.id)" }
+                .joined(separator: ">")
+            if seen.insert(key).inserted { result.append(itin) }
+            if result.count >= resultLimit { break }
+        }
+        return result
+    }
+
+    // MARK: - One-transfer search
+
+    /// A segment with its times as seconds since the service day's midnight.
+    private struct Seg {
+        let row: GTFSDatabase.DirectTripRow
+        let dep: Int
+        let arr: Int
+    }
+
+    private struct TransferCandidate {
+        let first: Seg
+        let last: Seg
+        let walkMeters: Double
+    }
+
+    private static func segs(_ rows: [GTFSDatabase.DirectTripRow]) -> [Seg] {
+        rows.compactMap { r in
+            guard let d = GTFSTime.seconds(of: r.departureTime),
+                  let a = GTFSTime.seconds(of: r.arrivalTime) else { return nil }
+            return Seg(row: r, dep: d, arr: a)
+        }
+    }
+
+    private static func transferItineraries(
+        data: PlanData,
+        providerId: String,
+        stops: [Stop],
+        stopsById: [String: Stop],
+        liveTrips: [String: TripUpdate],
+        originName: String,
+        originCoord: CLLocationCoordinate2D,
+        destName: String,
+        destCoord: CLLocationCoordinate2D
+    ) -> [TripItinerary] {
+        let firsts = segs(data.first)
+        var lastsByBoarding: [String: [Seg]] = [:]
+        for l in segs(data.last) { lastsByBoarding[l.row.fromStopId, default: []].append(l) }
+        for key in Array(lastsByBoarding.keys) {
+            lastsByBoarding[key]?.sort { $0.dep < $1.dep }
+        }
+        guard !firsts.isEmpty, !lastsByBoarding.isEmpty else { return [] }
+
+        let grid = StopGrid(stops: stops)
+        var nearCache: [String: [(stop: Stop, meters: Double)]] = [:]
+
+        // Best second leg per (first trip, boarding stop): earliest final arrival.
+        var best: [String: TransferCandidate] = [:]
+        for f in firsts {
+            guard let alight = stopsById[f.row.toStopId] else { continue }
+            let neighbours: [(stop: Stop, meters: Double)]
+            if let cached = nearCache[alight.id] {
+                neighbours = cached
+            } else {
+                neighbours = grid.near(alight, within: transferRadiusMeters)
+                nearCache[alight.id] = neighbours
+            }
+            for (boardStop, meters) in neighbours {
+                guard let options = lastsByBoarding[boardStop.id] else { continue }
+                let ready = f.arr + Int(meters * 0.75) + transferBufferSeconds   // 80 m/min walk
+                for l in options {
+                    if l.dep < ready { continue }
+                    if l.dep > ready + maxTransferWaitSeconds { break }
+                    if l.row.tripId == f.row.tripId || l.row.routeId == f.row.routeId { continue }
+                    let key = f.row.tripId + "|" + f.row.fromStopId
+                    if let current = best[key], current.last.arr <= l.arr { continue }
+                    best[key] = TransferCandidate(first: f, last: l, walkMeters: meters)
                 }
-                let departureDelay = Self.delaySeconds(boarding)
-                let arrivalDelay   = Self.delaySeconds(alighting) ?? departureDelay
-
-                let walkTo = WalkLeg(
-                    fromName:       originName,
-                    toName:         fromStop.name,
-                    fromCoordinate: originCoord,
-                    toCoordinate:   fromStop.coordinate,
-                    distanceMeters: distance(originCoord, fromStop.coordinate)
-                )
-                let walkFrom = WalkLeg(
-                    fromName:       toStop.name,
-                    toName:         destName,
-                    fromCoordinate: toStop.coordinate,
-                    toCoordinate:   destCoord,
-                    distanceMeters: distance(toStop.coordinate, destCoord)
-                )
-                let transit = TransitLeg(
-                    providerId:     providerId,
-                    routeId:        row.routeId,
-                    routeShortName: row.routeShortName,
-                    routeLongName:  row.routeLongName,
-                    routeColor:     row.routeColor,
-                    headsign:       row.headsign,
-                    fromStop:       fromStop,
-                    toStop:         toStop,
-                    departureTime:  row.departureTime,
-                    arrivalTime:    row.arrivalTime,
-                    tripId:         row.tripId,
-                    numStops:       row.stopCount,
-                    liveDelaySeconds: departureDelay,
-                    scheduledDeparture: scheduledDeparture,
-                    fromStopSequence: row.fromSequence
-                )
-
-                var legs: [TripLeg] = []
-                if walkTo.distanceMeters > 15 { legs.append(.walk(walkTo)) }
-                legs.append(.transit(transit))
-                if walkFrom.distanceMeters > 15 { legs.append(.walk(walkFrom)) }
-
-                let departure = scheduledDeparture
-                    .addingTimeInterval(Double(departureDelay ?? 0))
-                    .addingTimeInterval(-Double(walkTo.walkMinutes * 60))
-                let arrival = scheduledArrival
-                    .addingTimeInterval(Double(arrivalDelay ?? 0))
-                    .addingTimeInterval(Double(walkFrom.walkMinutes * 60))
-
-                allItineraries.append(TripItinerary(
-                    legs: legs,
-                    departureDate: departure,
-                    arrivalDate: arrival
-                ))
             }
         }
 
-        guard !allItineraries.isEmpty else { throw TripPlanError.noRouteFound }
+        let ordered = best.values.sorted { a, b in
+            if a.last.arr != b.last.arr { return a.last.arr < b.last.arr }
+            return a.first.dep < b.first.dep
+        }
 
-        // Dedupe by (route + headsign + fromStop): we only want the soonest trip
-        // of each "option" so the results list isn't flooded by the next 10 buses.
         var seen: Set<String> = []
-        let deduped = allItineraries
-            .sorted { $0.arrivalDate < $1.arrivalDate }
-            .filter { itin in
-                guard let t = itin.transitLegs.first else { return false }
-                let key = "\(t.providerId)|\(t.routeShortName)|\(t.headsign)|\(t.fromStop.id)"
-                if seen.contains(key) { return false }
-                seen.insert(key)
-                return true
-            }
-            .prefix(resultLimit)
+        var result: [TripItinerary] = []
+        for c in ordered {
+            if result.count >= transferItineraryLimit { break }
+            let key = "\(c.first.row.routeId)|\(c.last.row.routeId)|\(c.first.row.fromStopId)|\(c.last.row.toStopId)"
+            guard seen.insert(key).inserted else { continue }
 
-        return Array(deduped)
+            guard let b1 = buildTransitLeg(row: c.first.row, serviceDay: data.day, providerId: providerId,
+                                           stopsById: stopsById, liveTrips: liveTrips),
+                  let b2 = buildTransitLeg(row: c.last.row, serviceDay: data.day, providerId: providerId,
+                                           stopsById: stopsById, liveTrips: liveTrips)
+            else { continue }
+
+            // Live delays may make the connection impossible.
+            let walkSeconds = c.walkMeters * 0.75
+            if b1.arrival.addingTimeInterval(walkSeconds + 30) > b2.departure { continue }
+
+            let walkTo = walkLeg(fromName: originName, toName: b1.leg.fromStop.name,
+                                 from: originCoord, to: b1.leg.fromStop.coordinate)
+            let transferWalk = walkLeg(fromName: b1.leg.toStop.name, toName: b2.leg.fromStop.name,
+                                       from: b1.leg.toStop.coordinate, to: b2.leg.fromStop.coordinate)
+            let walkFrom = walkLeg(fromName: b2.leg.toStop.name, toName: destName,
+                                   from: b2.leg.toStop.coordinate, to: destCoord)
+            result.append(assemble(walkTo: walkTo, transits: [b1, b2],
+                                   transferWalk: transferWalk, walkFrom: walkFrom))
+        }
+        return result
+    }
+
+    /// Spatial hash of stops for "stops within N metres" lookups.
+    private struct StopGrid {
+        private static let cell = 0.003   // ≈ 333 m of latitude, ≈ 235 m of longitude at 45°N
+        private var cells: [Int: [Stop]] = [:]
+
+        init(stops: [Stop]) {
+            for s in stops {
+                let cx = Int(floor(s.lat / StopGrid.cell))
+                let cy = Int(floor(s.lon / StopGrid.cell))
+                cells[StopGrid.key(cx, cy), default: []].append(s)
+            }
+        }
+
+        private static func key(_ cx: Int, _ cy: Int) -> Int {
+            (cx + 100_000) * 1_000_000 + (cy + 100_000)
+        }
+
+        func near(_ stop: Stop, within meters: Double) -> [(stop: Stop, meters: Double)] {
+            let cx = Int(floor(stop.lat / StopGrid.cell))
+            let cy = Int(floor(stop.lon / StopGrid.cell))
+            let here = CLLocation(latitude: stop.lat, longitude: stop.lon)
+            var out: [(stop: Stop, meters: Double)] = []
+            for dx in -1...1 {
+                for dy in -1...1 {
+                    for s in cells[StopGrid.key(cx + dx, cy + dy)] ?? [] {
+                        let d = s.distance(from: here)
+                        if d <= meters { out.append((stop: s, meters: d)) }
+                    }
+                }
+            }
+            return out
+        }
+    }
+
+    // MARK: - Itinerary building
+
+    private struct BuiltLeg {
+        let leg: TransitLeg
+        /// Departure / arrival including live delay.
+        let departure: Date
+        let arrival: Date
+    }
+
+    /// Builds one transit leg with its live-adjusted times; nil when the trip is
+    /// canceled or skips the boarding/alighting stop.
+    private static func buildTransitLeg(
+        row: GTFSDatabase.DirectTripRow,
+        serviceDay: Date,
+        providerId: String,
+        stopsById: [String: Stop],
+        liveTrips: [String: TripUpdate]
+    ) -> BuiltLeg? {
+        guard let fromStop = stopsById[row.fromStopId],
+              let toStop   = stopsById[row.toStopId] else { return nil }
+
+        let scheduledDeparture = absoluteDate(for: row.departureTime, reference: serviceDay)
+        let scheduledArrival   = absoluteDate(for: row.arrivalTime, reference: serviceDay)
+        let boarding = RealtimeScheduleMerger.status(
+            tripId: row.tripId, stopId: row.fromStopId, stopSequence: row.fromSequence,
+            scheduled: scheduledDeparture, updates: liveTrips)
+        let alighting = RealtimeScheduleMerger.status(
+            tripId: row.tripId, stopId: row.toStopId, stopSequence: row.toSequence,
+            scheduled: scheduledArrival, updates: liveTrips)
+        if [boarding, alighting].contains(where: { $0 == .canceled || $0 == .skipped }) {
+            return nil
+        }
+        let departureDelay = delaySeconds(boarding)
+        let arrivalDelay   = delaySeconds(alighting) ?? departureDelay
+
+        let leg = TransitLeg(
+            providerId:     providerId,
+            routeId:        row.routeId,
+            routeShortName: row.routeShortName,
+            routeLongName:  row.routeLongName,
+            routeColor:     row.routeColor,
+            headsign:       row.headsign,
+            fromStop:       fromStop,
+            toStop:         toStop,
+            departureTime:  row.departureTime,
+            arrivalTime:    row.arrivalTime,
+            tripId:         row.tripId,
+            numStops:       row.stopCount,
+            liveDelaySeconds: departureDelay,
+            scheduledDeparture: scheduledDeparture,
+            fromStopSequence: row.fromSequence
+        )
+        return BuiltLeg(
+            leg: leg,
+            departure: scheduledDeparture.addingTimeInterval(Double(departureDelay ?? 0)),
+            arrival:   scheduledArrival.addingTimeInterval(Double(arrivalDelay ?? 0)))
+    }
+
+    private static func walkLeg(
+        fromName: String, toName: String,
+        from: CLLocationCoordinate2D, to: CLLocationCoordinate2D
+    ) -> WalkLeg {
+        WalkLeg(fromName: fromName, toName: toName,
+                fromCoordinate: from, toCoordinate: to,
+                distanceMeters: distance(from, to))
+    }
+
+    /// Stitches walk + transit (+ transfer walk + transit) + walk into an itinerary.
+    /// Walks of 15 m or less are not shown as legs and add no time.
+    private static func assemble(
+        walkTo: WalkLeg,
+        transits: [BuiltLeg],
+        transferWalk: WalkLeg?,
+        walkFrom: WalkLeg
+    ) -> TripItinerary {
+        var legs: [TripLeg] = []
+        let showWalkTo   = walkTo.distanceMeters > 15
+        let showWalkFrom = walkFrom.distanceMeters > 15
+        if showWalkTo { legs.append(.walk(walkTo)) }
+        for (i, built) in transits.enumerated() {
+            if i > 0, let w = transferWalk, w.distanceMeters > 15 { legs.append(.walk(w)) }
+            legs.append(.transit(built.leg))
+        }
+        if showWalkFrom { legs.append(.walk(walkFrom)) }
+
+        let departure = transits[0].departure
+            .addingTimeInterval(-Double(showWalkTo ? walkTo.walkMinutes * 60 : 0))
+        let arrival = transits[transits.count - 1].arrival
+            .addingTimeInterval(Double(showWalkFrom ? walkFrom.walkMinutes * 60 : 0))
+        return TripItinerary(legs: legs, departureDate: departure, arrivalDate: arrival)
     }
 
     // MARK: - DB glue
 
-    /// Direct-trip rows departing at or after `departAt`, each tagged with the
-    /// service day its GTFS times are relative to: the departure day's own
-    /// services, plus the previous day's after-midnight trips (times ≥ 24:00,
-    /// queried with the departure time shifted by +24 h).
-    private static func fetchRowsDetached(
+    private struct PlanData {
+        /// Direct rows, each tagged with the service day its GTFS times are relative to.
+        var direct: [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] = []
+        var first: [GTFSDatabase.DirectTripRow] = []
+        var last: [GTFSDatabase.DirectTripRow] = []
+        /// Service day of `first` / `last` (the departure day).
+        var day: Date
+    }
+
+    /// Everything the search needs from the provider DB, in one open/close:
+    /// direct rows (the departure day's own services, plus the previous day's
+    /// after-midnight trips with times ≥ 24:00), and first/last leg segments for
+    /// the one-transfer search on the departure day.
+    private static func fetchPlanDataDetached(
         providerId: String,
         fromStopIds: [String],
         toStopIds:   [String],
         departAt:    Date
-    ) async -> [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] {
-        await Task.detached(priority: .userInitiated) {
+    ) async -> PlanData {
+        await Task.detached(priority: .userInitiated) { () -> PlanData in
+            var data = PlanData(day: departAt)
             let db = GTFSDatabase.forProviderId(providerId)
             do {
                 try db.open()
                 defer { db.close() }
                 let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: departAt) ?? departAt
                 let afterTime = gtfsTimeString(from: departAt)
-                let afterTimeOvernight = GTFSTime.format(
-                    seconds: (GTFSTime.seconds(of: afterTime) ?? 0) + 24 * 3600)
+                let afterSeconds = GTFSTime.seconds(of: afterTime) ?? 0
+                let afterTimeOvernight = GTFSTime.format(seconds: afterSeconds + 24 * 3600)
+                let untilTime = GTFSTime.format(seconds: afterSeconds + transferWindowSeconds)
 
-                func rows(on day: Date, after time: String) -> [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] {
+                func directRows(on day: Date, after time: String) -> [(row: GTFSDatabase.DirectTripRow, serviceDay: Date)] {
                     // Services of the planned day — not "today" — so planning
                     // for tomorrow uses tomorrow's calendar.
                     let services = (try? db.fetchActiveServiceIds(for: day)) ?? []
@@ -259,11 +470,24 @@ enum TripPlanner {
                     )) ?? []
                     return found.map { (row: $0, serviceDay: day) }
                 }
-                return rows(on: departAt, after: afterTime)
-                     + rows(on: previousDay, after: afterTimeOvernight)
+                data.direct = directRows(on: departAt, after: afterTime)
+                            + directRows(on: previousDay, after: afterTimeOvernight)
+
+                let services = (try? db.fetchActiveServiceIds(for: departAt)) ?? []
+                if !services.isEmpty {
+                    data.first = (try? db.fetchSegments(
+                        fromStopIds: fromStopIds, serviceIds: services,
+                        afterTime: afterTime, untilTime: untilTime,
+                        limit: firstLegRowLimit)) ?? []
+                    data.last = (try? db.fetchSegments(
+                        toStopIds: toStopIds, serviceIds: services,
+                        afterTime: afterTime, untilTime: untilTime,
+                        limit: lastLegRowLimit)) ?? []
+                }
             } catch {
-                return []
+                return PlanData(day: departAt)
             }
+            return data
         }.value
     }
 

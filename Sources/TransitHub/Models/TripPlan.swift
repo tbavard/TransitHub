@@ -126,6 +126,8 @@ enum TripPlanError: LocalizedError {
     case sameEndpoint
     case noLocationAvailable
     case noRouteFound
+    case noStopsNearOrigin
+    case noStopsNearDestination
 
     var errorDescription: String? {
         switch self {
@@ -134,6 +136,8 @@ enum TripPlanError: LocalizedError {
         case .sameEndpoint:       return String(localized: "plan.error.same_endpoint")
         case .noLocationAvailable:return String(localized: "plan.error.no_location")
         case .noRouteFound:       return String(localized: "plan.error.no_route")
+        case .noStopsNearOrigin:      return String(localized: "plan.error.no_stops_origin")
+        case .noStopsNearDestination: return String(localized: "plan.error.no_stops_destination")
         }
     }
 }

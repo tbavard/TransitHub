@@ -10,6 +10,8 @@ struct PlanStopPickerView: View {
     @EnvironmentObject var appVM: AppViewModel
     @Environment(\.dismiss) private var dismiss
 
+    /// Only this network's stops are offered (one network per search).
+    let providerId: String
     let onSelect: (PlanEndpoint) -> Void
 
     @State private var searchText = ""
@@ -18,13 +20,20 @@ struct PlanStopPickerView: View {
         guard searchText.count >= 2 else { return [] }
         let q = searchText.lowercased()
         return Array(appVM.stops.lazy.filter {
-            $0.name.lowercased().contains(q) || $0.id == searchText
+            $0.providerId == providerId
+                && ($0.name.lowercased().contains(q) || $0.id == searchText)
         }.prefix(40))
+    }
+
+    private var favoriteStops: [Stop] {
+        appVM.favoriteStops.filter { $0.providerId == providerId }
     }
 
     private var nearbyStops: [Stop] {
         guard let loc = appVM.userLocation else { return [] }
-        return appVM.nearestStops(to: loc, count: 10)
+        return Array(appVM.nearestStops(to: loc, count: 60)
+            .filter { $0.providerId == providerId }
+            .prefix(10))
     }
 
     var body: some View {
@@ -63,9 +72,9 @@ struct PlanStopPickerView: View {
                         }
                     }
                 } else {
-                    if !appVM.favoriteStops.isEmpty {
+                    if !favoriteStops.isEmpty {
                         Section("Favoris") {
-                            ForEach(appVM.favoriteStops) { stop in
+                            ForEach(favoriteStops) { stop in
                                 stopRow(stop)
                             }
                         }
@@ -106,13 +115,10 @@ struct PlanStopPickerView: View {
                     Text(stop.name)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    HStack(spacing: 6) {
-                        ProviderBadge(providerId: stop.providerId)
-                        if let loc = appVM.userLocation {
-                            Text(stop.formattedDistance(from: loc))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    if let loc = appVM.userLocation {
+                        Text(stop.formattedDistance(from: loc))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()
