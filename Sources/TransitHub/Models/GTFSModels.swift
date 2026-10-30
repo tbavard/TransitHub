@@ -93,6 +93,9 @@ struct Stop: Identifiable, Hashable {
         locationType == 1 || (!(parentStation ?? "").isEmpty)
     }
 
+    /// SF Symbol shared by every stop row/card/pin header.
+    var symbolName: String { isStation ? "tram.fill" : "bus.fill" }
+
     /// Stable key for persisting favorites across providers (e.g. "stm:51425")
     var favoriteKey: String { "\(providerId):\(id)" }
 

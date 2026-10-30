@@ -114,7 +114,7 @@ struct FavoritesView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
+                        Image(systemName: "gearshape")
                             .accessibilityLabel(Text("Réglages"))
                     }
                 }
@@ -217,7 +217,7 @@ struct FavoritesView: View {
                     .font(.system(.title3, design: .rounded, weight: .heavy))
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
                     .font(.caption.weight(.semibold))
                     .opacity(0.7)
             }
@@ -243,10 +243,10 @@ struct FavoritesView: View {
     @ViewBuilder
     private var stopsSection: some View {
         if homeStops.isEmpty {
-            SectionHeader(title: "Mes arrêts", icon: "mappin.and.ellipse", color: Theme.brandStart)
+            SectionHeader(title: "Mes arrêts", icon: "mappin.circle.fill", color: Theme.brandStart)
             emptyStopsCard
         } else {
-            SectionHeader(title: "Mes arrêts", icon: "mappin.and.ellipse", color: Theme.brandStart)
+            SectionHeader(title: "Mes arrêts", icon: "mappin.circle.fill", color: Theme.brandStart)
             VStack(spacing: Spacing.md) {
                 ForEach(homeStops) { stop in
                     NavigationLink(value: AppDestination.stop(stop)) {
@@ -387,7 +387,7 @@ private struct StopResultRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
+            Image(systemName: stop.symbolName).accessibilityHidden(true)
                 .frame(width: 20)
                 .foregroundStyle(stop.isStation ? Theme.brandStart : .secondary)
 
@@ -415,7 +415,7 @@ private struct StopResultRow: View {
             if appVM.isFavorite(stop) {
                 Image(systemName: "star.fill").font(.caption).foregroundStyle(Theme.favorite)
             }
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right").accessibilityHidden(true).font(.caption).foregroundStyle(.tertiary)
         }
     }
 }

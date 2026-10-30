@@ -9,16 +9,16 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             FavoritesView()
-                .tabItem { Label("Tableau de bord", systemImage: "house.fill") }
+                .tabItem { Label("Accueil", systemImage: "house") }
 
             TransitMapView(locationService: locationService)
-                .tabItem { Label("Carte", systemImage: "map.fill") }
+                .tabItem { Label("Carte", systemImage: "map") }
 
             PlanView()
-                .tabItem { Label("Itinéraire", systemImage: "arrow.triangle.turn.up.right.circle.fill") }
+                .tabItem { Label("Itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
 
             NearbyView(locationService: locationService)
-                .tabItem { Label("À proximité", systemImage: "location.fill") }
+                .tabItem { Label("À proximité", systemImage: "location") }
 
             RoutesView()
                 .tabItem { Label("Lignes", systemImage: "list.bullet.rectangle") }

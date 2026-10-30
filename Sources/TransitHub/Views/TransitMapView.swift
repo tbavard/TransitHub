@@ -414,7 +414,7 @@ struct MapStopPreviewCard: View {
                 HStack(spacing: Spacing.s) {
                     Text("Voir tous les horaires")
                         .font(.subheadline.weight(.semibold))
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.right").accessibilityHidden(true)
                         .font(.caption.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -438,7 +438,7 @@ struct MapStopPreviewCard: View {
     private var header: some View {
         HStack(alignment: .top, spacing: Spacing.m) {
             // Same identity bubble as the stop screen header.
-            Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
+            Image(systemName: stop.symbolName).accessibilityHidden(true)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)

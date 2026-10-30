@@ -85,7 +85,7 @@ struct TransitStopCard: View {
 
     private var header: some View {
         HStack(spacing: Spacing.m) {
-            Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
+            Image(systemName: stop.symbolName).accessibilityHidden(true)
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .frame(width: 24)
@@ -114,7 +114,7 @@ struct TransitStopCard: View {
 
             Spacer(minLength: Spacing.xs)
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.right").accessibilityHidden(true)
                 .font(Typography.caption)
                 .foregroundStyle(.tertiary)
         }

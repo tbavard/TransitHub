@@ -126,7 +126,7 @@ struct PlanView: View {
                     }
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

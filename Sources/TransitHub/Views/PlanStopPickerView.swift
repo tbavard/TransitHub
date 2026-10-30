@@ -99,7 +99,7 @@ struct PlanStopPickerView: View {
             dismiss()
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: stop.isStation ? "tram.fill" : "bus.fill")
+                Image(systemName: stop.symbolName).accessibilityHidden(true)
                     .foregroundStyle(stop.isStation ? Theme.brandStart : .secondary)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
@@ -116,7 +116,7 @@ struct PlanStopPickerView: View {
                     }
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

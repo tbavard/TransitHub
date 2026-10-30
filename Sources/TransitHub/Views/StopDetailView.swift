@@ -80,7 +80,7 @@ struct StopDetailView: View {
         return "\(stop.formattedDistance(from: loc)) · \(walkMin) min"
     }
 
-    private var stopIcon: String { stop.isStation ? "tram.fill" : "bus.fill" }
+    private var stopIcon: String { stop.symbolName }
 
     var body: some View {
         ScrollView {
@@ -613,7 +613,7 @@ struct RouteScheduleHeader: View {
                 .lineLimit(1)
             Spacer()
             if showsDisclosure {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }

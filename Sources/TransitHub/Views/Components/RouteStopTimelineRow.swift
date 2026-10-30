@@ -51,7 +51,7 @@ struct RouteStopTimelineRow: View {
 
             Spacer(minLength: Spacing.sm)
 
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.right").accessibilityHidden(true)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }

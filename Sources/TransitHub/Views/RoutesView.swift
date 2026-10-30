@@ -208,7 +208,7 @@ struct RouteDetailView: View {
                         alertsSection
                     }
                     VStack(alignment: .leading, spacing: Spacing.sm) {
-                        SectionHeader(title: "Arrêts", icon: "mappin.and.ellipse",
+                        SectionHeader(title: "Arrêts", icon: "mappin.circle.fill",
                                       color: route.officialRouteColor)
                         stopsTimeline
                     }

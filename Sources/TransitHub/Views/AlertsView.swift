@@ -220,7 +220,7 @@ struct AlertsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
             NavigationLink(destination: SettingsView()) {
-                Label("Réglages", systemImage: "gear")
+                Label("Réglages", systemImage: "gearshape")
             }
             .buttonStyle(.borderedProminent)
         }
