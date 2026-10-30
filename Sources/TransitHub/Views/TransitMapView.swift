@@ -377,32 +377,15 @@ struct TransitMapView: View {
     }
 
     private func nearbyStopBlock(_ stop: Stop) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Button { path.append(AppDestination.stop(stop)) } label: {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: stop.symbolName)
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text(stop.name)
-                        .font(Typography.sectionTitle)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Spacer()
-                    if let loc = locationService.location {
-                        Text(stop.formattedDistance(from: loc))
-                            .font(Typography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Image(systemName: "chevron.right").accessibilityHidden(true)
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-
-            departureCards(for: loader.schedule(for: stop, using: appVM),
-                           stop: stop,
-                           isLoading: loader.isLoading(stop))
+        StopDeparturesBlock(
+            stop: stop,
+            schedule: loader.schedule(for: stop, using: appVM),
+            isLoading: loader.isLoading(stop),
+            isFavorite: appVM.isFavorite(stop),
+            userLocation: locationService.location,
+            emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
+        ) {
+            path.append(AppDestination.stop(stop))
         }
     }
 
@@ -446,9 +429,13 @@ struct TransitMapView: View {
                 .accessibilityLabel(Text("Fermer"))
             }
 
-            departureCards(for: appVM.withRealtime(previewSchedule, at: stop),
-                           stop: stop,
-                           isLoading: isLoadingPreview)
+            DepartureCardsList(
+                schedule: appVM.withRealtime(previewSchedule, at: stop),
+                isLoading: isLoadingPreview,
+                emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
+            ) {
+                path.append(AppDestination.stop(stop))
+            }
 
             HStack(spacing: Spacing.sm) {
                 actionCapsule("Voir tous les horaires", icon: "clock", filled: true) {
@@ -477,27 +464,6 @@ struct TransitMapView: View {
                         in: Capsule())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: Shared: a stop's departures as cards
-
-    @ViewBuilder
-    private func departureCards(for schedule: [ScheduleEntry], stop: Stop, isLoading: Bool) -> some View {
-        let groups = schedule.groupedByRouteAndHeadsign(limit: 5)
-        if isLoading && groups.isEmpty {
-            RouteDepartureCardPlaceholder()
-        } else if groups.isEmpty {
-            Text(appVM.serviceNotStartedMessage(for: stop.providerId) ?? String(localized: "Aucun départ prochain"))
-                .font(Typography.body)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, Spacing.sm)
-        } else {
-            ForEach(Array(groups.prefix(4))) { group in
-                RouteDepartureCard(group: group)
-                    .onTapGesture { path.append(AppDestination.stop(stop)) }
-                    .accessibilityAddTraits(.isButton)
-            }
-        }
     }
 
     // MARK: - Initial centering

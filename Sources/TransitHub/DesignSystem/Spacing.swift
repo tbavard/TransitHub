@@ -10,21 +10,21 @@ enum Spacing {
     /// 2 — hairline gaps inside a compact label (icon ↔ text).
     static let xxs: CGFloat = 2
     /// 4 — tight intra-component spacing.
-    static let xs: CGFloat = 4
+    static let xs: CGFloat = 6
     /// 6 — default gap between an icon and its label.
     static let s: CGFloat = 6
     /// 8 — small stack spacing.
-    static let sm: CGFloat = 8
+    static let sm: CGFloat = 10
     /// 10 — row content spacing.
     static let m: CGFloat = 10
     /// 12 — standard gap between cards / rows.
     static let md: CGFloat = 12
     /// 14 — card inner padding.
-    static let lg: CGFloat = 14
+    static let lg: CGFloat = 16
     /// 16 — screen horizontal margin.
-    static let xl: CGFloat = 16
+    static let xl: CGFloat = 20
     /// 22 — gap between major sections.
-    static let xxl: CGFloat = 22
+    static let xxl: CGFloat = 24
     /// 32 — bottom scroll inset.
     static let xxxl: CGFloat = 32
 }
@@ -32,16 +32,16 @@ enum Spacing {
 // MARK: - Corner radius scale
 
 enum Radius {
-    /// 4 — provider badge chip.
-    static let xs: CGFloat = 4
-    /// 8 — route pill.
-    static let sm: CGFloat = 8
-    /// 10 — inline alert row.
-    static let md: CGFloat = 10
-    /// 14 — secondary card.
-    static let lg: CGFloat = 14
-    /// 16 — primary card / header.
-    static let xl: CGFloat = 16
-    /// 22 — large hero surfaces.
-    static let xxl: CGFloat = 22
+    /// 6 — provider badge chip.
+    static let xs: CGFloat = 6
+    /// 10 — route pill.
+    static let sm: CGFloat = 10
+    /// 12 — inline alert row.
+    static let md: CGFloat = 12
+    /// 16 — secondary card.
+    static let lg: CGFloat = 16
+    /// 20 — departure tiles, hero blocks.
+    static let xl: CGFloat = 20
+    /// 24 — primary cards, departure cards, panel.
+    static let xxl: CGFloat = 24
 }

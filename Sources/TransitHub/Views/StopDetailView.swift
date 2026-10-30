@@ -349,13 +349,22 @@ struct StopDetailView: View {
         let next = nextEntry(for: group.entries)
         let tint = Color(hex: group.routeColor) ?? Theme.brandStart
 
+        let upcoming = group.entries
+            .filter { !$0.hasDepartedToday && !$0.isCanceled }
+            .sorted { $0.minutesUntilDeparture < $1.minutesUntilDeparture }
+
         VStack(alignment: .leading, spacing: Spacing.md) {
-            if let next {
+            if !upcoming.isEmpty {
+                DepartureTileCarousel(entries: Array(upcoming.prefix(8)), tint: tint, now: now)
+            } else if let next {
+                // Nothing left today / canceled: keep the explanatory hero.
                 NextDepartureHero(
                     entry: next,
                     following: following(next, in: group.entries),
                     now: now
                 )
+            }
+            if let next {
                 TrackDepartureButton(entry: next, stop: stop, manager: liveActivityManager)
             }
             ScheduleGrid(entries: group.entries, nextEntry: next, tint: tint)

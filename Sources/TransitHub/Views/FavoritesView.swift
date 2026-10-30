@@ -8,6 +8,7 @@ struct FavoritesView: View {
     @State private var isLoadingSchedules = false
     @State private var searchText = ""
     @State private var showAlerts = false
+    @State private var path = NavigationPath()
 
     private var searchRouteResults: [Route] {
         guard !searchText.isEmpty else { return [] }
@@ -25,27 +26,12 @@ struct FavoritesView: View {
         }.prefix(50))
     }
 
-    // Nearest stops excluding already-favorited ones
-    private var nearestStops: [Stop] {
-        guard let loc = appVM.userLocation else { return [] }
-        let favKeys = Set(appVM.favoriteStops.map(\.favoriteKey))
-        return appVM.nearestStops(to: loc, count: 8)
-            .filter { !favKeys.contains($0.favoriteKey) }
-            .prefix(4)
-            .map { $0 }
-    }
-
-    /// Favorites first (sorted by distance if known), then nearest non-favorites.
+    /// Favourites, nearest first when the position is known.
     private var homeStops: [Stop] {
-        let favs: [Stop]
         if let loc = appVM.userLocation {
-            favs = appVM.favoriteStops.sorted {
-                $0.distance(from: loc) < $1.distance(from: loc)
-            }
-        } else {
-            favs = appVM.favoriteStops
+            return appVM.favoriteStops.sorted { $0.distance(from: loc) < $1.distance(from: loc) }
         }
-        return favs + nearestStops
+        return appVM.favoriteStops
     }
 
     private var stopsKey: String {
@@ -85,7 +71,7 @@ struct FavoritesView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if providersStore.providers.isEmpty {
                     NoProvidersView()
@@ -108,7 +94,7 @@ struct FavoritesView: View {
                     }
                 }
             }
-            .navigationTitle("Tableau de bord")
+            .navigationTitle("Favoris")
             .searchable(text: $searchText, prompt: "Ligne, arrêt, numéro…")
             .appDestinations()
             .toolbar {
@@ -247,39 +233,24 @@ struct FavoritesView: View {
             emptyStopsCard
         } else {
             SectionHeader(title: "Mes arrêts", icon: "mappin.circle.fill", color: Theme.brandStart)
-            VStack(spacing: Spacing.md) {
+            VStack(spacing: Spacing.xl) {
                 ForEach(homeStops) { stop in
-                    NavigationLink(value: AppDestination.stop(stop)) {
-                        TransitStopCard(
-                            stop: stop,
-                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
-                            userLocation: appVM.userLocation,
-                            isFavorite: appVM.isFavorite(stop),
-                            isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,
-                            emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
-                        )
+                    StopDeparturesBlock(
+                        stop: stop,
+                        schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
+                        isLoading: isLoadingSchedules && schedulesByStop[stop.id] == nil,
+                        isFavorite: true,
+                        userLocation: appVM.userLocation,
+                        emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
+                    ) {
+                        path.append(AppDestination.stop(stop))
                     }
-                    .buttonStyle(.plain)
-                    .cardScrollTransition()
                     .contextMenu {
                         Button {
                             withMotionAnimation { appVM.toggleFavorite(stop) }
                         } label: {
-                            if appVM.isFavorite(stop) {
-                                Label("Retirer des favoris", systemImage: "star.slash")
-                            } else {
-                                Label("Ajouter aux favoris", systemImage: "star")
-                            }
+                            Label("Retirer des favoris", systemImage: "star.slash")
                         }
-                    } preview: {
-                        TransitStopCard(
-                            stop: stop,
-                            schedule: appVM.withRealtime(schedulesByStop[stop.id] ?? [], at: stop),
-                            userLocation: appVM.userLocation,
-                            isFavorite: appVM.isFavorite(stop),
-                            isLoading: false
-                        )
-                        .frame(width: 340)
                     }
                     .transition(.asymmetric(
                         insertion: .scale(scale: 0.9).combined(with: .opacity),
@@ -298,9 +269,9 @@ struct FavoritesView: View {
                 .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.favorite)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Aucun arrêt")
+                Text("Aucun favori")
                     .font(.body.weight(.semibold))
-                Text("Ajoutez un favori ou activez la localisation pour voir les arrêts à proximité.")
+                Text("Touchez l'étoile d'un arrêt, sur la carte, pour le retrouver ici.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

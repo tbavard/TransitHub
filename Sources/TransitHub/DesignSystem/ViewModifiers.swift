@@ -6,7 +6,7 @@ import SwiftUI
 // border + crisp shadow" pattern used by every card in the app.
 
 struct CardModifier: ViewModifier {
-    var cornerRadius: CGFloat = Radius.xl
+    var cornerRadius: CGFloat = Radius.xxl
     var elevated: Bool = false
 
     func body(content: Content) -> some View {
@@ -24,7 +24,7 @@ struct CardModifier: ViewModifier {
 
 extension View {
     /// Standard card surface (background + radius + hairline + shadow).
-    func card(cornerRadius: CGFloat = Radius.xl, elevated: Bool = false) -> some View {
+    func card(cornerRadius: CGFloat = Radius.xxl, elevated: Bool = false) -> some View {
         modifier(CardModifier(cornerRadius: cornerRadius, elevated: elevated))
     }
 }
