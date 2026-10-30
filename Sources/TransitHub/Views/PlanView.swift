@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import MapKit
 
 // MARK: - Picker role
 
@@ -30,6 +31,12 @@ struct PlanView: View {
     @State private var planError: String?
 
     @State private var pickerRole: PlanPickerRole? = nil
+
+    // Map + panel
+    @State private var selectedID: UUID?
+    @State private var legPaths: [UUID: [CLLocationCoordinate2D]] = [:]
+    @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var detent: PanelDetent = .half
 
     /// The network being planned on: the stored choice, else the first one.
     private var provider: TransitProvider? {
@@ -62,23 +69,12 @@ struct PlanView: View {
                 if providersStore.providers.isEmpty {
                     NoProvidersView()
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: Spacing.md) {
-                            if providersStore.providers.count > 1 { networkMenu }
-                            endpointsCard
-                            timeRow
-                            content
-                        }
-                        .padding(.horizontal, Spacing.xl)
-                        .padding(.top, Spacing.sm)
-                        .padding(.bottom, Spacing.xxxl)
-                    }
-                    .background(Theme.screenBackground)
-                    .refreshable { await plan() }
+                    mapAndPanel
                 }
             }
-            .navigationTitle("Itinéraire")
             .task(id: request) { await plan() }
+            .task(id: selectedID) { await loadPathsForSelection() }
+            .onChange(of: selectedID) { _, _ in refit() }
             .onAppear { consumePending(appVM.pendingPlanDestination) }
             .onChange(of: appVM.pendingPlanDestination) { _, stop in consumePending(stop) }
             // Success / error tap when a search finishes.
@@ -92,11 +88,143 @@ struct PlanView: View {
                     case .origin:      origin = endpoint
                     case .destination: destination = endpoint
                     }
-                    itineraries = []
-                    planError = nil
+                    clearResults()
                 }
             }
         }
+    }
+
+    // MARK: - Map + panel
+
+    private var mapAndPanel: some View {
+        ZStack {
+            planMap
+                .ignoresSafeArea(edges: .top)
+
+            BottomPanel(detent: $detent) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        if providersStore.providers.count > 1 { networkMenu }
+                        endpointsCard
+                        timeRow
+                        content
+                    }
+                    .padding(.horizontal, Spacing.xl)
+                    .padding(.bottom, Spacing.xxxl)
+                }
+                .refreshable { await plan() }
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var selectedItinerary: TripItinerary? {
+        itineraries.first { $0.id == selectedID }
+    }
+
+    private var planMap: some View {
+        Map(position: $camera) {
+            UserAnnotation()
+
+            if origin != .userLocation,
+               let c = origin.coordinate(userLocation: appVM.userLocation) {
+                Marker(origin.displayName, systemImage: "circle.fill", coordinate: c)
+                    .tint(Theme.brandStart)
+            }
+            if let destination,
+               let c = destination.coordinate(userLocation: appVM.userLocation) {
+                Marker(destination.displayName, systemImage: "mappin", coordinate: c)
+                    .tint(Theme.statusCritical)
+            }
+
+            if let sel = selectedItinerary {
+                ForEach(sel.walkLegs) { w in
+                    MapPolyline(coordinates: [w.fromCoordinate, w.toCoordinate])
+                        .stroke(.gray, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [1, 7]))
+                }
+                ForEach(sel.transitLegs) { t in
+                    MapPolyline(coordinates: path(for: t))
+                        .stroke(Color(hex: t.routeColor) ?? Theme.brandStart, lineWidth: 6)
+                    Annotation("", coordinate: t.fromStop.coordinate, anchor: .center) {
+                        stopDot(Color(hex: t.routeColor) ?? Theme.brandStart)
+                    }
+                    Annotation("", coordinate: t.toStop.coordinate, anchor: .center) {
+                        stopDot(Color(hex: t.routeColor) ?? Theme.brandStart)
+                    }
+                }
+            }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .mapControls {
+            MapUserLocationButton()
+            MapCompass()
+        }
+    }
+
+    private func stopDot(_ color: Color) -> some View {
+        Circle()
+            .fill(.white)
+            .frame(width: 14, height: 14)
+            .overlay(Circle().strokeBorder(color, lineWidth: 3))
+            .accessibilityHidden(true)
+    }
+
+    /// Stop-to-stop path of a leg once loaded; a straight line until then.
+    private func path(for leg: TransitLeg) -> [CLLocationCoordinate2D] {
+        if let p = legPaths[leg.id], p.count >= 2 { return p }
+        return [leg.fromStop.coordinate, leg.toStop.coordinate]
+    }
+
+    private func loadPathsForSelection() async {
+        guard let sel = selectedItinerary else { return }
+        let missing = sel.transitLegs.filter { legPaths[$0.id] == nil }
+        guard !missing.isEmpty else { return }
+        let loaded = await appVM.tripPaths(for: missing)
+        if Task.isCancelled { return }
+        legPaths.merge(loaded) { _, new in new }
+    }
+
+    /// Frames the selected itinerary (or origin + destination) in the part of
+    /// the map the panel leaves visible.
+    private func refit() {
+        var coords: [CLLocationCoordinate2D] = []
+        if let sel = selectedItinerary {
+            for leg in sel.legs {
+                switch leg {
+                case .walk(let w):    coords += [w.fromCoordinate, w.toCoordinate]
+                case .transit(let t): coords += [t.fromStop.coordinate, t.toStop.coordinate]
+                }
+            }
+        } else {
+            if let o = origin.coordinate(userLocation: appVM.userLocation) { coords.append(o) }
+            if let d = destination?.coordinate(userLocation: appVM.userLocation) { coords.append(d) }
+        }
+        guard let rect = Self.fitRect(coords) else { return }
+        withMotionAnimation(.easeInOut(duration: 0.6)) { camera = .rect(rect) }
+    }
+
+    private static func fitRect(_ coords: [CLLocationCoordinate2D]) -> MKMapRect? {
+        guard coords.count >= 2 else { return nil }
+        var rect = MKMapRect.null
+        for c in coords {
+            let p = MKMapPoint(c)
+            rect = rect.union(MKMapRect(x: p.x, y: p.y, width: 0, height: 0))
+        }
+        // At least ~800 m of margin, then extend the bottom so the route sits
+        // in the upper part of the screen, above the panel.
+        let minPad = 800 * MKMapPointsPerMeterAtLatitude(coords[0].latitude)
+        let padX = max(rect.size.width * 0.25, minPad)
+        let padY = max(rect.size.height * 0.25, minPad)
+        return MKMapRect(x: rect.origin.x - padX,
+                         y: rect.origin.y - padY,
+                         width: rect.size.width + 2 * padX,
+                         height: (rect.size.height + 2 * padY) * 1.8)
+    }
+
+    private func clearResults() {
+        itineraries = []
+        selectedID = nil
+        planError = nil
     }
 
     // MARK: - Network
@@ -141,8 +269,7 @@ struct PlanView: View {
         storedProviderId = stop.providerId
         origin = .userLocation
         destination = .stop(stop)
-        itineraries = []
-        planError = nil
+        clearResults()
         appVM.pendingPlanDestination = nil
     }
 
@@ -152,8 +279,7 @@ struct PlanView: View {
         storedProviderId = p.id
         origin = .userLocation
         destination = nil
-        itineraries = []
-        planError = nil
+        clearResults()
     }
 
     // MARK: - Endpoints
@@ -234,8 +360,7 @@ struct PlanView: View {
         let newDest = origin
         origin = dest
         destination = newDest
-        itineraries = []
-        planError = nil
+        clearResults()
     }
 
     // MARK: - Time
@@ -302,7 +427,14 @@ struct PlanView: View {
         } else {
             VStack(spacing: Spacing.m) {
                 ForEach(itineraries) { itin in
-                    ItineraryCard(itin: itin)
+                    ItineraryCard(itin: itin, isSelected: itin.id == selectedID)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedID = itin.id
+                            if detent == .full { detent = .half }
+                        }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAddTraits(itin.id == selectedID ? .isSelected : [])
                 }
             }
         }
@@ -332,8 +464,7 @@ struct PlanView: View {
 
     private func plan() async {
         guard let destination, let provider else {
-            itineraries = []
-            planError = nil
+            clearResults()
             isPlanning = false
             return
         }
@@ -346,6 +477,8 @@ struct PlanView: View {
             // A newer request replaced this one: let it publish its own result.
             if Task.isCancelled { return }
             itineraries = result
+            selectedID = result.first?.id
+            if !result.isEmpty && detent == .collapsed { detent = .half }
             if result.isEmpty {
                 planError = TripPlanError.noRouteFound.errorDescription
             }
@@ -361,6 +494,7 @@ struct PlanView: View {
             planError = error.localizedDescription
         }
         isPlanning = false
+        refit()
     }
 }
 
@@ -380,6 +514,7 @@ extension PlanPickerRole: Identifiable {
 struct ItineraryCard: View {
     @EnvironmentObject var liveActivityManager: LiveActivityManager
     let itin: TripItinerary
+    var isSelected: Bool = false
 
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
@@ -413,8 +548,9 @@ struct ItineraryCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: Radius.xl)
                 .strokeBorder(isTracked ? Theme.brandStart.opacity(0.5)
-                                        : Color(.separator).opacity(0.25),
-                              lineWidth: isTracked ? 1.5 : 0.5)
+                                        : isSelected ? Theme.brandStart
+                                                     : Color(.separator).opacity(0.25),
+                              lineWidth: isTracked ? 1.5 : (isSelected ? 2 : 0.5))
         )
         .trackingFeedback(isTracked)
     }
