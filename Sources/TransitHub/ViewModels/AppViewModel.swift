@@ -194,6 +194,28 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Trip planning
 
+    /// Stop-to-stop paths of transit legs, for drawing an itinerary on the map.
+    /// Legs without a usable path are simply absent from the result.
+    func tripPaths(for legs: [TransitLeg]) async -> [UUID: [CLLocationCoordinate2D]] {
+        await Task.detached(priority: .userInitiated) { () -> [UUID: [CLLocationCoordinate2D]] in
+            var result: [UUID: [CLLocationCoordinate2D]] = [:]
+            for (pid, group) in Dictionary(grouping: legs, by: \.providerId) {
+                let db = GTFSDatabase.forProviderId(pid)
+                guard (try? db.open()) != nil else { continue }
+                defer { db.close() }
+                for leg in group {
+                    guard let from = leg.fromStopSequence else { continue }
+                    let to = from + max(leg.numStops - 1, 0)
+                    if let path = try? db.fetchTripPath(tripId: leg.tripId, fromSequence: from, toSequence: to),
+                       path.count >= 2 {
+                        result[leg.id] = path
+                    }
+                }
+            }
+            return result
+        }.value
+    }
+
     /// Plans trips (direct, or with one transfer) on a single network.
     func planTrip(
         from origin: PlanEndpoint,

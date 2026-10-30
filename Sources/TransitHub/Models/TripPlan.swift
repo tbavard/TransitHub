@@ -34,6 +34,17 @@ enum PlanEndpoint: Equatable, Hashable {
     }
 }
 
+extension PlanEndpoint {
+    /// Where this endpoint is on the map (nil for "my position" without a fix).
+    func coordinate(userLocation: CLLocation?) -> CLLocationCoordinate2D? {
+        switch self {
+        case .userLocation: return userLocation?.coordinate
+        case .stop(let s):  return s.coordinate
+        case .place(let p): return p.coordinate
+        }
+    }
+}
+
 // MARK: - Trip leg (one segment of an itinerary)
 
 struct WalkLeg: Identifiable, Hashable {

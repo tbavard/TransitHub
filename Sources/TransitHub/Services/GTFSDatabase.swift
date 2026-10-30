@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import SQLite3
 
 // MARK: - Error
@@ -535,6 +536,25 @@ final class GTFSDatabase {
             ))
         }
         return result
+    }
+
+    /// Coordinates of the stops a trip visits from `fromSequence` to
+    /// `toSequence` (inclusive), in order — used to draw a leg on the map.
+    /// (The feeds carry no `shapes`, so the path goes stop to stop.)
+    func fetchTripPath(tripId: String, fromSequence: Int, toSequence: Int) throws -> [CLLocationCoordinate2D] {
+        var coords: [CLLocationCoordinate2D] = []
+        try query("""
+            SELECT s.stop_lat, s.stop_lon
+            FROM stop_times st
+            JOIN stops s ON s.stop_id = st.stop_id
+            WHERE st.trip_id = ? AND st.stop_sequence BETWEEN ? AND ?
+            ORDER BY st.stop_sequence
+        """, [tripId, fromSequence, toSequence]) { stmt in
+            coords.append(CLLocationCoordinate2D(
+                latitude:  sqlite3_column_double(stmt, 0),
+                longitude: sqlite3_column_double(stmt, 1)))
+        }
+        return coords
     }
 
     /// Trip segments for a one-transfer search. Exactly one end is pinned:
