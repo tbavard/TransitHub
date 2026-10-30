@@ -86,11 +86,11 @@ func withMotionAnimation<R>(_ animation: Animation? = .default,
 // Dynamic Type (a fixed `.font(.system(size:))` ignores the user's text size).
 
 private struct ScaledIcon: ViewModifier {
-    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat
+    @ScaledMetric private var size: CGFloat
     let weight: Font.Weight
 
     init(_ base: CGFloat, weight: Font.Weight) {
-        _size = ScaledMetric(wrappedValue: base, relativeTo: .largeTitle)
+        self._size = ScaledMetric(wrappedValue: base, relativeTo: .largeTitle)
         self.weight = weight
     }
 
