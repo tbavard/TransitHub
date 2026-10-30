@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><style>
+body{margin:0;padding:24px;background:#f2f2f7;font:14px Arial;width:1100px}
+.row{display:flex;gap:40px;margin-bottom:24px;align-items:flex-end}
+.i{border-radius:22.37%;overflow:hidden;display:block}
+figure{margin:0;text-align:center}
+.dark{background:#1c1c1e;padding:12px;border-radius:12px}
+</style>
+<div class="row" id="big"></div><div class="row" id="mid"></div><div class="row" id="small"></div>
+<script>
+const names={a:'A · Ligne & arrêts',b:'B · Pastilles de ligne',c:'C · Arrêt & ondes'};
+for(const [id,sz] of [['big',230],['mid',60],['small',29]]){
+ for(const k of ['a','b','c']){
+  const f=document.createElement('figure');
+  f.innerHTML=`<img class="i" width="${sz}" height="${sz}" src="${k}-${{a:'line',b:'pill',c:'pulse'}[k]}.svg"><div>${id=='big'?names[k]:sz+' pt'}</div>`;
+  document.getElementById(id).appendChild(f);
+ }
+}
+</script>
