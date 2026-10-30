@@ -200,7 +200,7 @@ struct StopDetailView: View {
                 label: isFavorite ? "Favori" : "Favoriser",
                 tint: isFavorite ? Theme.favorite : Theme.brandStart
             ) {
-                withAnimation(.spring(duration: 0.25)) {
+                withMotionAnimation(.spring(duration: 0.25)) {
                     appVM.toggleFavorite(stop)
                 }
             }
@@ -590,8 +590,8 @@ struct NextDepartureHero: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.livelyGradient, in: RoundedRectangle(cornerRadius: Radius.xl))
         .shadow(color: tint.opacity(0.35), radius: 10, x: 0, y: 6)
-        .animation(.snappy, value: countdownText)
-        .animation(.snappy, value: entry.realtime)
+        .motionSafe(.snappy, value: countdownText)
+        .motionSafe(.snappy, value: entry.realtime)
         .imminentFeedback(!isPast && !entry.isCanceled && minutes == 0)
     }
 }
@@ -709,8 +709,8 @@ struct MinuteChip: View {
                 isNext ? tint.readableForeground :
                 entry.hasDepartedToday || entry.isCanceled ? Color(.tertiaryLabel) : .primary
             )
-            .padding(.horizontal, isNext ? Spacing.m : 7)
-            .padding(.vertical,   isNext ? Spacing.s : 3)
+            .padding(.horizontal, isNext ? Spacing.m : Spacing.s)
+            .padding(.vertical,   isNext ? Spacing.s : Spacing.xs)
             .background(background, in: RoundedRectangle(cornerRadius: isNext ? Radius.sm : 5))
             // Timetable grid keeps scheduled minutes; a dot flags runs the
             // live feed reports as late.
@@ -724,7 +724,7 @@ struct MinuteChip: View {
             }
             .shadow(color: isNext ? tint.opacity(0.35) : .clear, radius: 4, x: 0, y: 2)
             .scaleEffect(isNext ? 1.05 : 1.0)
-            .animation(.spring(response: 0.3), value: isNext)
+            .motionSafe(.spring(response: 0.3), value: isNext)
             // "08:14, next departure" / "07:52, departed" / "09:05, canceled".
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(A11y.join([

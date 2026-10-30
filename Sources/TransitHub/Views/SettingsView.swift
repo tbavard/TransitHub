@@ -469,6 +469,6 @@ struct APIKeyStatusBadge: View {
             }
         }
         .font(.caption)
-        .animation(.easeInOut(duration: 0.2), value: keySaved)
+        .motionSafe(.easeInOut(duration: 0.2), value: keySaved)
     }
 }

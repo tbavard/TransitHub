@@ -86,7 +86,7 @@ struct TransitMapView: View {
                 ForEach(visibleStops) { stop in
                     Annotation(stop.name, coordinate: stop.coordinate, anchor: .center) {
                         StopPin(stop: stop, isSelected: previewStop?.favoriteKey == stop.favoriteKey) {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withMotionAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 if previewStop?.favoriteKey == stop.favoriteKey {
                                     previewStop = nil
                                     previewSchedule = []
@@ -160,7 +160,7 @@ struct TransitMapView: View {
             // covered. Static 210pt covers the typical card height (header +
             // up to 3 route rows + CTA button).
             .padding(.bottom, previewStop != nil ? 210 : 0)
-            .animation(.spring(response: 0.35, dampingFraction: 0.8),
+            .motionSafe(.spring(response: 0.35, dampingFraction: 0.8),
                        value: previewStop?.favoriteKey)
         }
         // Overlay the preview card on top of the map instead of using
@@ -179,12 +179,12 @@ struct TransitMapView: View {
                 ) {
                     showFullSheet = true
                 } onDismiss: {
-                    withAnimation(.spring(response: 0.3)) {
+                    withMotionAnimation(.spring(response: 0.3)) {
                         previewStop = nil
                         previewSchedule = []
                     }
                 } onFavoriteToggle: {
-                    withAnimation(.spring(duration: 0.25)) {
+                    withMotionAnimation(.spring(duration: 0.25)) {
                         appVM.toggleFavorite(stop)
                     }
                 }
@@ -193,7 +193,7 @@ struct TransitMapView: View {
                 .padding(.bottom, 8)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: previewStop?.favoriteKey)
+        .motionSafe(.spring(response: 0.35, dampingFraction: 0.8), value: previewStop?.favoriteKey)
         .sheet(isPresented: $showFullSheet) {
             if let stop = previewStop {
                 NavigationStack {
@@ -213,7 +213,7 @@ struct TransitMapView: View {
             guard let loc else { return }
             if isFollowingUser || initialCentering != .user {
                 if initialCentering != .user { initialCentering = .user }
-                withAnimation { position = .region(MKCoordinateRegion(
+                withMotionAnimation { position = .region(MKCoordinateRegion(
                     center: loc.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
                 ))}
@@ -275,7 +275,7 @@ struct TransitMapView: View {
     }
 
     private func centerToLocation(_ loc: CLLocation) {
-        withAnimation { position = .region(MKCoordinateRegion(
+        withMotionAnimation { position = .region(MKCoordinateRegion(
             center: loc.coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
         ))}
@@ -363,30 +363,30 @@ struct MapStopPreviewCard: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.top, Spacing.md)
+                .padding(.bottom, Spacing.m)
 
-            Divider().padding(.leading, 14)
+            Divider().padding(.leading, Spacing.lg)
 
             if isLoading {
                 VStack(spacing: 0) {
                     ForEach(0..<2, id: \.self) { i in
-                        HStack(spacing: 12) {
-                            RoundedRectangle(cornerRadius: 8)
+                        HStack(spacing: Spacing.md) {
+                            RoundedRectangle(cornerRadius: Radius.sm)
                                 .fill(Color(.systemFill))
                                 .frame(width: 44, height: 28)
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: Radius.xs)
                                 .fill(Color(.systemFill))
                                 .frame(height: 12)
                             Spacer()
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: Radius.xs)
                                 .fill(Color(.systemFill))
                                 .frame(width: 36, height: 14)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        if i == 0 { Divider().padding(.leading, 14 + 44 + 12) }
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.vertical, Spacing.m)
+                        if i == 0 { Divider().padding(.leading, Spacing.lg + 44 + Spacing.md) }
                     }
                 }
                 .redacted(reason: .placeholder)
@@ -394,42 +394,42 @@ struct MapStopPreviewCard: View {
                 emptyText
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.lg)
             } else {
                 let shown = Array(groups.prefix(3))
                 VStack(spacing: 0) {
                     ForEach(shown.indices, id: \.self) { i in
                         TransitRouteRow(group: shown[i])
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.vertical, Spacing.m)
                         if i < shown.count - 1 {
-                            Divider().padding(.leading, 14 + 44 + 12)
+                            Divider().padding(.leading, Spacing.lg + 44 + Spacing.md)
                         }
                     }
                 }
             }
 
             Button(action: onOpenDetail) {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.s) {
                     Text("Voir tous les horaires")
                         .font(.subheadline.weight(.semibold))
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
+                .padding(.vertical, Spacing.m)
                 .background(Theme.brandGradient, in: Capsule())
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
+            .padding(.horizontal, Spacing.md)
+            .padding(.top, Spacing.m)
+            .padding(.bottom, Spacing.md)
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.xl))
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: Radius.xl)
                 .strokeBorder(Color(.separator).opacity(0.25), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 4)

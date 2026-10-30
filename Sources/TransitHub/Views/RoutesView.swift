@@ -218,7 +218,7 @@ struct RouteDetailView: View {
             .padding(.top, Spacing.md)
             .padding(.bottom, Spacing.xxxl)
             // Cross-fade between loading, empty and the new direction's stops.
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            .motionSafe(.easeInOut(duration: 0.2), value: isLoading)
         }
         .background(Theme.screenBackground)
         .navigationTitle("Ligne \(route.shortName)")
@@ -380,7 +380,7 @@ struct RouteAlertRow: View {
                                         .lineLimit(1)
                                 }
                                 .foregroundStyle(.secondary)
-                                .padding(.horizontal, 7).padding(.vertical, 3)
+                                .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xs)
                                 .background(Color(.systemFill), in: Capsule())
                             }
                             if alert.affectedStopCodes.count > 6 {

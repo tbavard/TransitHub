@@ -243,7 +243,7 @@ struct AlertRow: View {
         let color = alert.severityColor
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+                withMotionAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
             } label: {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: alert.effectIcon)
@@ -270,7 +270,7 @@ struct AlertRow: View {
                                 } else {
                                     Text(rid)
                                         .font(.caption.bold())
-                                        .padding(.horizontal, 5).padding(.vertical, 2)
+                                        .padding(.horizontal, Spacing.xs).padding(.vertical, Spacing.xxs)
                                         .background(Color(.systemFill),
                                                     in: RoundedRectangle(cornerRadius: 4))
                                 }
@@ -369,6 +369,6 @@ struct FilterChip: View {
                 .foregroundStyle(isSelected ? color.readableForeground : .primary)
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .motionSafe(.easeInOut(duration: 0.15), value: isSelected)
     }
 }

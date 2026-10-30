@@ -64,7 +64,7 @@ struct NearbyView: View {
                     .cardScrollTransition()
                     .contextMenu {
                         Button {
-                            withAnimation { appVM.toggleFavorite(stop) }
+                            withMotionAnimation { appVM.toggleFavorite(stop) }
                         } label: {
                             if appVM.isFavorite(stop) {
                                 Label("Retirer des favoris", systemImage: "star.slash")

@@ -263,7 +263,7 @@ struct FavoritesView: View {
                     .cardScrollTransition()
                     .contextMenu {
                         Button {
-                            withAnimation { appVM.toggleFavorite(stop) }
+                            withMotionAnimation { appVM.toggleFavorite(stop) }
                         } label: {
                             if appVM.isFavorite(stop) {
                                 Label("Retirer des favoris", systemImage: "star.slash")
@@ -427,7 +427,7 @@ private struct AlertTeaserRow: View {
 
     var body: some View {
         let color = alert.severityColor
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.m) {
             Image(systemName: alert.effectIcon)
                 .font(.subheadline)
                 .foregroundStyle(color)
@@ -436,7 +436,7 @@ private struct AlertTeaserRow: View {
             Text(alert.typeLabel)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(color)
-                .padding(.horizontal, 6).padding(.vertical, 2)
+                .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xxs)
                 .background(color.opacity(0.12), in: Capsule())
 
             Text(alert.title)
@@ -446,12 +446,12 @@ private struct AlertTeaserRow: View {
 
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.m)
         .background(color.opacity(0.07),
-                    in: RoundedRectangle(cornerRadius: 10))
+                    in: RoundedRectangle(cornerRadius: Radius.md))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: Radius.md)
                 .strokeBorder(color.opacity(0.2), lineWidth: 1)
         )
     }

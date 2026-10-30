@@ -6,13 +6,14 @@ import SwiftUI
 // GTFS-RT prediction rather than the static timetable.
 
 struct LiveIndicator: View {
-    var color: Color = Theme.brandEnd
+    var color: Color = Theme.urgentText
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Image(systemName: "dot.radiowaves.left.and.right")
             .font(Typography.badge)
             .foregroundStyle(color)
-            .symbolEffect(.pulse, options: .repeating)
+            .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
             .accessibilityLabel(Text("En direct"))
     }
 }

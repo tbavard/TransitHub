@@ -323,7 +323,7 @@ struct ItineraryCard: View {
             .foregroundStyle(isTracked ? Color.primary : .white)
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.2), value: isTracked)
+        .motionSafe(.easeInOut(duration: 0.2), value: isTracked)
     }
 
     private var header: some View {

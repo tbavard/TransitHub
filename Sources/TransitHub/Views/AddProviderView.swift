@@ -135,14 +135,14 @@ struct AddProviderView: View {
                     if r.official == true {
                         Text("Officiel")
                             .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .padding(.horizontal, Spacing.xs).padding(.vertical, Spacing.xxs)
                             .background(Theme.statusOK.opacity(0.15), in: Capsule())
                             .foregroundStyle(Theme.statusOK)
                     }
                     if let status = r.status, status != "active" {
                         Text(status.capitalized)
                             .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .padding(.horizontal, Spacing.xs).padding(.vertical, Spacing.xxs)
                             .background(Theme.statusWarning.opacity(0.15), in: Capsule())
                             .foregroundStyle(Theme.statusWarning)
                     }

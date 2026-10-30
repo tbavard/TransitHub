@@ -72,6 +72,14 @@ extension View {
     }
 }
 
+/// `withAnimation` that is skipped when Reduce Motion is on (for state changes
+/// triggered from closures, where the view environment is not available).
+@MainActor
+func withMotionAnimation<R>(_ animation: Animation? = .default,
+                            _ body: () throws -> R) rethrows -> R {
+    try withAnimation(UIAccessibility.isReduceMotionEnabled ? nil : animation, body)
+}
+
 // MARK: - Scaled decorative icon
 //
 // Large hero/empty-state symbols: sized from a base point size but scaled with
