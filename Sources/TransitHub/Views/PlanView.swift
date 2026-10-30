@@ -20,6 +20,9 @@ struct PlanView: View {
 
     @AppStorage("plan.providerId") private var storedProviderId = ""
 
+    /// Set when the planner is presented over the map: shows a close button.
+    var onClose: (() -> Void)? = nil
+
     @State private var origin: PlanEndpoint = .userLocation
     @State private var destination: PlanEndpoint? = nil
 
@@ -100,6 +103,15 @@ struct PlanView: View {
         ZStack {
             planMap
                 .ignoresSafeArea(edges: .top)
+
+            if let onClose {
+                Button(action: onClose) { Image(systemName: "xmark") }
+                    .buttonStyle(.floatingCircle)
+                    .accessibilityLabel(Text("Fermer"))
+                    .padding(.horizontal, Spacing.xl)
+                    .padding(.top, Spacing.sm)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
 
             BottomPanel(detent: $detent) {
                 if detent == .collapsed {

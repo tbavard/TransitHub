@@ -108,7 +108,7 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Cross-tab navigation
     /// Selected tab; lets a stop screen jump to the planner.
-    @Published var selectedTab: AppTab = .home
+    @Published var selectedTab: AppTab = .map
     /// Set by "Y aller" on a stop; consumed (and cleared) by the planner tab.
     @Published var pendingPlanDestination: Stop?
 

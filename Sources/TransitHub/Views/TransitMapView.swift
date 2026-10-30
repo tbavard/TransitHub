@@ -1,8 +1,16 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Map home
+//
+// The app's home screen: a full-screen map with a draggable bottom panel.
+// The panel lists what is passing near the user as route-coloured cards
+// (swipe a card for the following departures); tapping a stop pin shows that
+// stop instead. "Où allez-vous ?" opens the trip planner over the map.
+
 struct TransitMapView: View {
     @EnvironmentObject var appVM: AppViewModel
+    @EnvironmentObject var providersStore: UserProvidersStore
     @ObservedObject var locationService: LocationService
 
     @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
@@ -17,9 +25,18 @@ struct TransitMapView: View {
     @State private var previewStop: Stop?
     @State private var previewSchedule: [ScheduleEntry] = []
     @State private var isLoadingPreview = false
-    @State private var showFullSheet = false
     @State private var isFollowingUser = false
     @State private var showVehicles = true
+
+    // Panel, navigation, presentations
+    @State private var detent: PanelDetent = .half
+    @State private var path = NavigationPath()
+    @State private var showPlan = false
+    @State private var showSettings = false
+
+    // Nearby stops listed in the panel
+    @StateObject private var loader = StopSchedulesLoader()
+    @State private var nearbyStops: [Stop] = []
 
     /// Cached routeId → color map so vehicle annotations don't do an O(N) scan
     /// of `appVM.routes` on every SwiftUI redraw. Rebuilt when routes change.
@@ -33,6 +50,9 @@ struct TransitMapView: View {
     /// Hide vehicles when zoomed out — same threshold idea as stops but a
     /// bit more generous since vehicles are sparser.
     private static let vehicleZoomThreshold: Double = 0.12
+
+    /// How many nearby stops the panel lists.
+    private static let nearbyStopCount = 5
 
     var visibleStops: [Stop] {
         guard visibleRegion.span.latitudeDelta < 0.08 else { return [] }
@@ -78,156 +98,405 @@ struct TransitMapView: View {
         routeColorIndex = idx
     }
 
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Map(position: $position, selection: .constant(nil)) {
-                UserAnnotation()
+    private var nearbyKey: String {
+        nearbyStops.map(\.favoriteKey).joined(separator: ",")
+    }
 
-                ForEach(visibleStops) { stop in
-                    Annotation(stop.name, coordinate: stop.coordinate, anchor: .center) {
-                        StopPin(stop: stop, isSelected: previewStop?.favoriteKey == stop.favoriteKey) {
-                            withMotionAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                if previewStop?.favoriteKey == stop.favoriteKey {
-                                    previewStop = nil
-                                    previewSchedule = []
-                                } else {
-                                    previewStop = stop
-                                    previewSchedule = []
-                                }
+    // MARK: - Body
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ZStack {
+                mapLayer
+                overlayButtons
+                BottomPanel(detent: $detent) { panelContent }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .appDestinations()
+        }
+        .fullScreenCover(isPresented: $showPlan) {
+            PlanView(onClose: { showPlan = false })
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fermer") { showSettings = false }
+                        }
+                    }
+            }
+        }
+        .task(id: nearbyKey) {
+            await loader.load(stops: nearbyStops, using: appVM)
+        }
+        .onChange(of: previewStop?.favoriteKey) { _, key in
+            if key != nil && detent == .collapsed { detent = .half }
+            Task { await loadPreviewSchedule() }
+        }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+            Task {
+                await loadPreviewSchedule()
+                await loader.load(stops: nearbyStops, using: appVM)
+            }
+        }
+        .onChange(of: locationService.location) { _, loc in
+            updateNearbyStops()
+            guard let loc else { return }
+            if isFollowingUser || initialCentering != .user {
+                if initialCentering != .user { initialCentering = .user }
+                centerToLocation(loc)
+            }
+        }
+        .onAppear {
+            centerInitiallyIfNeeded()
+            updateNearbyStops()
+            if routeColorIndex.isEmpty { rebuildRouteColorIndex() }
+            if appVM.pendingPlanDestination != nil { showPlan = true }
+        }
+        .onChange(of: appVM.stops.count) { _, _ in
+            centerInitiallyIfNeeded()
+            updateNearbyStops()
+        }
+        .onChange(of: appVM.routes) { _, _ in
+            rebuildRouteColorIndex()
+        }
+        // "Y aller" from a stop screen: open the planner on that destination.
+        .onChange(of: appVM.pendingPlanDestination) { _, stop in
+            if stop != nil { showPlan = true }
+        }
+    }
+
+    // MARK: - Map
+
+    private var mapLayer: some View {
+        Map(position: $position, selection: .constant(nil)) {
+            UserAnnotation()
+
+            ForEach(visibleStops) { stop in
+                Annotation(stop.name, coordinate: stop.coordinate, anchor: .center) {
+                    StopPin(stop: stop, isSelected: previewStop?.favoriteKey == stop.favoriteKey) {
+                        withMotionAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            if previewStop?.favoriteKey == stop.favoriteKey {
+                                closePreview()
+                            } else {
+                                previewStop = stop
+                                previewSchedule = []
                             }
                         }
                     }
                 }
+            }
 
-                ForEach(visibleVehicles) { vehicle in
-                    Annotation("", coordinate: vehicle.coordinate, anchor: .center) {
-                        let isHighlighted = previewRouteIds.isEmpty
-                            || previewRouteIds.contains(vehicle.routeId)
-                        VehicleArrow(
-                            bearing: vehicle.bearing,
-                            color: routeColorIndex[vehicle.routeId] ?? Theme.soon
-                        )
-                        .opacity(isHighlighted ? 1.0 : 0.3)
-                    }
+            ForEach(visibleVehicles) { vehicle in
+                Annotation("", coordinate: vehicle.coordinate, anchor: .center) {
+                    let isHighlighted = previewRouteIds.isEmpty
+                        || previewRouteIds.contains(vehicle.routeId)
+                    VehicleArrow(
+                        bearing: vehicle.bearing,
+                        color: routeColorIndex[vehicle.routeId] ?? Theme.soon
+                    )
+                    .opacity(isHighlighted ? 1.0 : 0.3)
                 }
             }
-            .mapControls { MapCompass(); MapScaleView() }
-            .onMapCameraChange { ctx in
-                visibleRegion = ctx.region
-                if isFollowingUser, let loc = locationService.location {
-                    let dist = CLLocation(latitude: ctx.region.center.latitude,
-                                         longitude: ctx.region.center.longitude)
-                        .distance(from: loc)
-                    if dist > 200 { isFollowingUser = false }
-                }
+        }
+        .mapControls { }
+        .onMapCameraChange { ctx in
+            visibleRegion = ctx.region
+            if isFollowingUser, let loc = locationService.location {
+                let dist = CLLocation(latitude: ctx.region.center.latitude,
+                                     longitude: ctx.region.center.longitude)
+                    .distance(from: loc)
+                // The camera is parked a bit south of the user (the panel covers
+                // the lower half), so allow for that offset.
+                if dist > 600 { isFollowingUser = false }
             }
-            .ignoresSafeArea(edges: .top)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
 
-            VStack(spacing: 12) {
+    // MARK: - Floating buttons
+
+    private var overlayButtons: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Button { showSettings = true } label: {
+                    Image(systemName: "person.crop.circle")
+                }
+                .buttonStyle(.floatingCircle)
+                .accessibilityLabel(Text("Profil et réglages"))
+
+                if let status = networkIssue { statusPill(status) }
+
                 if visibleRegion.span.latitudeDelta > 0.08 {
                     Text("Zoomez pour\nvoir les arrêts")
                         .font(.caption2)
                         .multilineTextAlignment(.center)
-                        .padding(8)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .padding(Spacing.sm)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.md))
                 }
+            }
 
+            Spacer(minLength: 0)
+
+            VStack(spacing: Spacing.sm) {
                 if !appVM.vehiclePositions.isEmpty {
-                    Button {
-                        showVehicles.toggle()
-                    } label: {
+                    Button { showVehicles.toggle() } label: {
                         Image(systemName: showVehicles ? "bus.fill" : "bus")
-                            .font(.title3)
-                            .padding(12)
-                            .background(.regularMaterial, in: Circle())
-                            .foregroundStyle(showVehicles ? Theme.soon : .secondary)
+                            .foregroundStyle(showVehicles ? Theme.soonText : Color.secondary)
                     }
+                    .buttonStyle(.floatingCircle)
                     .accessibilityLabel(Text(showVehicles ? "Masquer les véhicules" : "Afficher les véhicules"))
                     .accessibilityAddTraits(showVehicles ? .isSelected : [])
                 }
 
                 Button { centerOnUser() } label: {
                     Image(systemName: isFollowingUser ? "location.fill" : "location")
-                        .font(.title3)
-                        .padding(12)
-                        .background(.regularMaterial, in: Circle())
-                        .foregroundStyle(isFollowingUser ? Theme.brandStart : .primary)
+                        .foregroundStyle(isFollowingUser ? Theme.brandStart : Color.primary)
                 }
+                .buttonStyle(.floatingCircle)
                 .accessibilityLabel(Text("Centrer sur ma position"))
             }
-            .padding()
-            // Push the map controls above the preview card so they don't get
-            // covered. Static 210pt covers the typical card height (header +
-            // up to 3 route rows + CTA button).
-            .padding(.bottom, previewStop != nil ? 210 : 0)
-            .motionSafe(.spring(response: 0.35, dampingFraction: 0.8),
-                       value: previewStop?.favoriteKey)
         }
-        // Overlay the preview card on top of the map instead of using
-        // `.safeAreaInset` — the inset reshaped the Map's safe area on every
-        // present/dismiss, forcing MapKit to relayout (visible as a flicker
-        // and brief full-screen resize). Overlay keeps the map frame stable.
-        .overlay(alignment: .bottom) {
-            if let stop = previewStop {
-                MapStopPreviewCard(
-                    stop: stop,
-                    schedule: appVM.withRealtime(previewSchedule, at: stop),
-                    userLocation: locationService.location,
-                    isFavorite: appVM.isFavorite(stop),
-                    isLoading: isLoadingPreview,
-                    emptyNotice: appVM.serviceNotStartedMessage(for: stop.providerId)
-                ) {
-                    showFullSheet = true
-                } onDismiss: {
-                    withMotionAnimation(.spring(response: 0.3)) {
-                        previewStop = nil
-                        previewSchedule = []
-                    }
-                } onFavoriteToggle: {
-                    withMotionAnimation(.spring(duration: 0.25)) {
-                        appVM.toggleFavorite(stop)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.top, Spacing.sm)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private typealias NetworkIssue = (icon: String, label: String, color: Color)
+
+    /// Only shown when something is wrong; opens the alerts tab.
+    private var networkIssue: NetworkIssue? {
+        let critical = appVM.serviceAlerts.filter { $0.severityLevel >= 3 }.count
+        let total = appVM.serviceAlerts.count + appVM.routeDelays.count
+        if critical > 0 {
+            return ("xmark.circle.fill",
+                    String(format: String(localized: "network.disruptions"), critical),
+                    Theme.statusCritical)
+        }
+        if total > 0 {
+            return ("exclamationmark.triangle.fill",
+                    String(format: String(localized: "network.alerts"), total),
+                    Theme.statusWarning)
+        }
+        return nil
+    }
+
+    private func statusPill(_ status: NetworkIssue) -> some View {
+        Button { appVM.selectedTab = .alerts } label: {
+            HStack(spacing: Spacing.xs + 1) {
+                Image(systemName: status.icon)
+                    .foregroundStyle(status.color)
+                Text(status.label)
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, Spacing.sm)
+            .background(Color(.systemBackground), in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text("Voir tous les avis"))
+    }
+
+    // MARK: - Panel
+
+    private var panelContent: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            searchPill
+            if detent != .collapsed {
+                if let stop = previewStop {
+                    stopSection(stop)
+                } else {
+                    nearbySection
+                }
+            }
+        }
+        .padding(.horizontal, Spacing.xl)
+        .padding(.bottom, Spacing.xxxl)
+    }
+
+    private var searchPill: some View {
+        Button { showPlan = true } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: "magnifyingglass")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityHidden(true)
+                Text("Où allez-vous ?")
+                    .font(Typography.cardTitle)
+                Spacer()
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.vertical, Spacing.lg)
+            .background(Theme.brandGradient, in: Capsule())
+            .shadow(color: Theme.brandStart.opacity(0.3), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Nearby
+
+    @ViewBuilder
+    private var nearbySection: some View {
+        if locationService.location == nil {
+            locationHint
+        } else if nearbyStops.isEmpty {
+            Text("Aucun arrêt à proximité")
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, Spacing.lg)
+        } else {
+            ForEach(nearbyStops) { stop in
+                nearbyStopBlock(stop)
+            }
+        }
+    }
+
+    private var locationHint: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Activez la localisation pour voir ce qui passe près de vous.")
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+            if locationService.needsSettings {
+                Button("Ouvrir les Réglages") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-            }
-        }
-        .motionSafe(.spring(response: 0.35, dampingFraction: 0.8), value: previewStop?.favoriteKey)
-        .sheet(isPresented: $showFullSheet) {
-            if let stop = previewStop {
-                NavigationStack {
-                    StopDetailView(stop: stop)
-                        .appDestinations()
+                .buttonStyle(.borderedProminent)
+            } else if !locationService.isAuthorized {
+                Button("Autoriser la localisation") {
+                    locationService.requestAuthorization()
                 }
-                .presentationDetents([.medium, .large])
+                .buttonStyle(.borderedProminent)
             }
         }
-        .onChange(of: previewStop?.favoriteKey) { _, _ in
-            Task { await loadPreviewSchedule() }
+        .padding(.vertical, Spacing.md)
+    }
+
+    private func nearbyStopBlock(_ stop: Stop) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Button { path.append(AppDestination.stop(stop)) } label: {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: stop.symbolName)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    Text(stop.name)
+                        .font(Typography.sectionTitle)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer()
+                    if let loc = locationService.location {
+                        Text(stop.formattedDistance(from: loc))
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.right").accessibilityHidden(true)
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            departureCards(for: loader.schedule(for: stop, using: appVM),
+                           stop: stop,
+                           isLoading: loader.isLoading(stop))
         }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
-            Task { await loadPreviewSchedule() }
-        }
-        .onChange(of: locationService.location) { _, loc in
-            guard let loc else { return }
-            if isFollowingUser || initialCentering != .user {
-                if initialCentering != .user { initialCentering = .user }
-                withMotionAnimation { position = .region(MKCoordinateRegion(
-                    center: loc.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
-                ))}
+    }
+
+    // MARK: Previewed stop
+
+    private func stopSection(_ stop: Stop) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: stop.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(Theme.brandStart)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(stop.name)
+                        .font(Typography.sectionTitle)
+                        .lineLimit(2)
+                    HStack(spacing: Spacing.s) {
+                        ProviderBadge(providerId: stop.providerId)
+                        if let loc = locationService.location {
+                            Text(stop.formattedDistance(from: loc))
+                                .font(Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Spacer(minLength: Spacing.xs)
+                Button {
+                    withMotionAnimation(.spring(duration: 0.25)) { appVM.toggleFavorite(stop) }
+                } label: {
+                    Image(systemName: appVM.isFavorite(stop) ? "star.fill" : "star")
+                        .foregroundStyle(appVM.isFavorite(stop) ? Theme.favorite : Color.secondary)
+                }
+                .buttonStyle(.floatingCircle)
+                .accessibilityLabel(Text(appVM.isFavorite(stop) ? "Retirer des favoris" : "Ajouter aux favoris"))
+                Button {
+                    withMotionAnimation(.spring(response: 0.3)) { closePreview() }
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.floatingCircle)
+                .accessibilityLabel(Text("Fermer"))
+            }
+
+            departureCards(for: appVM.withRealtime(previewSchedule, at: stop),
+                           stop: stop,
+                           isLoading: isLoadingPreview)
+
+            HStack(spacing: Spacing.sm) {
+                actionCapsule("Voir tous les horaires", icon: "clock", filled: true) {
+                    path.append(AppDestination.stop(stop))
+                }
+                actionCapsule("Y aller", icon: "arrow.triangle.turn.up.right.diamond", filled: false) {
+                    appVM.pendingPlanDestination = stop
+                    showPlan = true
+                }
             }
         }
-        .onAppear {
-            centerInitiallyIfNeeded()
-            if routeColorIndex.isEmpty { rebuildRouteColorIndex() }
+    }
+
+    private func actionCapsule(_ title: LocalizedStringKey, icon: String, filled: Bool,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.s) {
+                Image(systemName: icon).accessibilityHidden(true)
+                Text(title).font(Typography.body.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.m)
+            .foregroundStyle(filled ? Color.white : Theme.brandStart)
+            .background(filled ? AnyShapeStyle(Theme.brandGradient)
+                               : AnyShapeStyle(Theme.brandStart.opacity(0.12)),
+                        in: Capsule())
         }
-        .onChange(of: appVM.stops.count) { _, _ in
-            centerInitiallyIfNeeded()
-        }
-        .onChange(of: appVM.routes) { _, _ in
-            rebuildRouteColorIndex()
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Shared: a stop's departures as cards
+
+    @ViewBuilder
+    private func departureCards(for schedule: [ScheduleEntry], stop: Stop, isLoading: Bool) -> some View {
+        let groups = schedule.groupedByRouteAndHeadsign(limit: 5)
+        if isLoading && groups.isEmpty {
+            RouteDepartureCardPlaceholder()
+        } else if groups.isEmpty {
+            Text(appVM.serviceNotStartedMessage(for: stop.providerId) ?? String(localized: "Aucun départ prochain"))
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, Spacing.sm)
+        } else {
+            ForEach(Array(groups.prefix(4))) { group in
+                RouteDepartureCard(group: group)
+                    .onTapGesture { path.append(AppDestination.stop(stop)) }
+                    .accessibilityAddTraits(.isButton)
+            }
         }
     }
 
@@ -274,11 +543,30 @@ struct TransitMapView: View {
         centerToLocation(loc)
     }
 
+    /// Centers on the user, parked a little north of the middle of the screen:
+    /// the panel covers the lower half of the map.
     private func centerToLocation(_ loc: CLLocation) {
+        let span = 0.015
+        let center = CLLocationCoordinate2D(
+            latitude: loc.coordinate.latitude - span * 0.18,
+            longitude: loc.coordinate.longitude)
         withMotionAnimation { position = .region(MKCoordinateRegion(
-            center: loc.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
         ))}
+    }
+
+    private func closePreview() {
+        previewStop = nil
+        previewSchedule = []
+    }
+
+    private func updateNearbyStops() {
+        guard let loc = locationService.location else {
+            nearbyStops = []
+            return
+        }
+        nearbyStops = appVM.nearestStops(to: loc, count: Self.nearbyStopCount)
     }
 
     private func loadPreviewSchedule() async {
@@ -326,162 +614,6 @@ struct StopPin: View {
         .motionSafe(.spring(duration: 0.2), value: isSelected)
         .accessibilityLabel(String(format: String(localized: "a11y.stop"), stop.name))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-// MARK: - Map stop preview card (new — uses TransitRouteRow)
-
-struct MapStopPreviewCard: View {
-    let stop: Stop
-    let schedule: [ScheduleEntry]
-    let userLocation: CLLocation?
-    let isFavorite: Bool
-    let isLoading: Bool
-    var emptyNotice: String? = nil
-
-    private var emptyText: Text {
-        if schedule.isEmpty, let emptyNotice { return Text(verbatim: emptyNotice) }
-        return Text(schedule.isEmpty ? "Aucun service actif" : "Aucun départ prochain")
-    }
-    let onOpenDetail: () -> Void
-    let onDismiss: () -> Void
-    let onFavoriteToggle: () -> Void
-
-    private var groups: [RouteDeparturesGroup] { schedule.groupedByRouteAndHeadsign(limit: 2) }
-
-    private var walkingInfo: String? {
-        guard let loc = userLocation else { return nil }
-        let dist = stop.distance(from: loc)
-        let walkMin = max(1, Int((dist / 80).rounded()))
-        return "\(stop.formattedDistance(from: loc)) · \(walkMin) min"
-    }
-
-    var body: some View {
-        content.favoriteFeedback(isFavorite)
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.md)
-                .padding(.bottom, Spacing.m)
-
-            Divider().padding(.leading, Spacing.lg)
-
-            if isLoading {
-                VStack(spacing: 0) {
-                    ForEach(0..<2, id: \.self) { i in
-                        HStack(spacing: Spacing.md) {
-                            RoundedRectangle(cornerRadius: Radius.sm)
-                                .fill(Color(.systemFill))
-                                .frame(width: 44, height: 28)
-                            RoundedRectangle(cornerRadius: Radius.xs)
-                                .fill(Color(.systemFill))
-                                .frame(height: 12)
-                            Spacer()
-                            RoundedRectangle(cornerRadius: Radius.xs)
-                                .fill(Color(.systemFill))
-                                .frame(width: 36, height: 14)
-                        }
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.vertical, Spacing.m)
-                        if i == 0 { Divider().padding(.leading, Spacing.lg + 44 + Spacing.md) }
-                    }
-                }
-                .redacted(reason: .placeholder)
-            } else if groups.isEmpty {
-                emptyText
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.lg)
-            } else {
-                let shown = Array(groups.prefix(3))
-                VStack(spacing: 0) {
-                    ForEach(shown.indices, id: \.self) { i in
-                        TransitRouteRow(group: shown[i])
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.vertical, Spacing.m)
-                        if i < shown.count - 1 {
-                            Divider().padding(.leading, Spacing.lg + 44 + Spacing.md)
-                        }
-                    }
-                }
-            }
-
-            Button(action: onOpenDetail) {
-                HStack(spacing: Spacing.s) {
-                    Text("Voir tous les horaires")
-                        .font(.subheadline.weight(.semibold))
-                    Image(systemName: "chevron.right").accessibilityHidden(true)
-                        .font(.caption.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.m)
-                .background(Theme.brandGradient, in: Capsule())
-                .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, Spacing.md)
-            .padding(.top, Spacing.m)
-            .padding(.bottom, Spacing.md)
-        }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .strokeBorder(Color(.separator).opacity(0.25), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 4)
-    }
-
-    private var header: some View {
-        HStack(alignment: .top, spacing: Spacing.m) {
-            // Same identity bubble as the stop screen header.
-            Image(systemName: stop.symbolName).accessibilityHidden(true)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(Theme.brandGradient, in: RoundedRectangle(cornerRadius: Radius.md))
-                .shadow(color: Theme.brandStart.opacity(0.3), radius: 4, x: 0, y: 2)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(stop.name)
-                    .font(Typography.cardTitle)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                HStack(spacing: Spacing.s) {
-                    ProviderBadge(providerId: stop.providerId)
-                    if let info = walkingInfo {
-                        Label(info, systemImage: "figure.walk")
-                            .font(Typography.caption.weight(.semibold))
-                            .foregroundStyle(Theme.brandStart)
-                    }
-                }
-            }
-
-            Spacer(minLength: Spacing.xs)
-
-            Button(action: onFavoriteToggle) {
-                Image(systemName: isFavorite ? "star.fill" : "star")
-                    .font(.title3)
-                    .foregroundStyle(isFavorite ? Theme.favorite : .secondary)
-                    .symbolEffect(.bounce, value: isFavorite)
-                    .minTouchTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"))
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(Color(.systemGray))
-                    .minTouchTarget()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Fermer"))
-        }
     }
 }
 

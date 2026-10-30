@@ -38,6 +38,12 @@ enum Typography {
                 weight: emphasised ? .bold : .semibold)
     }
 
+    /// Big line number on a departure card ("38", "B").
+    static let lineNumber = Font.system(.largeTitle, design: .rounded, weight: .heavy)
+
+    /// The next departure in a departure card, in very large digits.
+    static let bigMinutes = Font.system(.largeTitle, design: .rounded, weight: .heavy)
+
     /// Route pill number (scales with Dynamic Type; pills use
     /// minimumScaleFactor to stay inside their frame).
     static let pill = Font.subheadline.weight(.bold)

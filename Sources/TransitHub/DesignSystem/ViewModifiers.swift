@@ -105,6 +105,26 @@ extension View {
     }
 }
 
+// MARK: - Floating round button
+//
+// White circular buttons floating over the map (profile, locate, close…).
+
+struct FloatingCircleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 44, height: 44)
+            .background(Color(.systemBackground), in: Circle())
+            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 2)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+extension ButtonStyle where Self == FloatingCircleButtonStyle {
+    static var floatingCircle: FloatingCircleButtonStyle { FloatingCircleButtonStyle() }
+}
+
 // MARK: - Minimum touch target
 
 extension View {

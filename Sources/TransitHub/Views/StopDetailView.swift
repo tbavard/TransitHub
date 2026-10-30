@@ -211,7 +211,7 @@ struct StopDetailView: View {
                 tint: Theme.brandStart
             ) {
                 appVM.pendingPlanDestination = stop
-                appVM.selectedTab = .plan
+                appVM.selectedTab = .map
             }
 
             StopActionButton(
