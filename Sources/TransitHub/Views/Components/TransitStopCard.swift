@@ -52,7 +52,7 @@ struct TransitStopCard: View {
                 Divider().padding(.leading, Spacing.lg)
                 emptyText
                     .font(Typography.body)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, Spacing.lg)
                     .padding(.vertical, Spacing.lg)
             } else {

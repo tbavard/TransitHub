@@ -61,11 +61,7 @@ struct NearbyView: View {
                     }
                     .buttonStyle(.plain)
                     // Same gentle fade/scale as the dashboard cards.
-                    .scrollTransition { content, phase in
-                        content
-                            .opacity(phase.isIdentity ? 1 : 0.4)
-                            .scaleEffect(phase.isIdentity ? 1 : 0.96)
-                    }
+                    .cardScrollTransition()
                     .contextMenu {
                         Button {
                             withAnimation { appVM.toggleFavorite(stop) }
@@ -114,10 +110,19 @@ struct NearbyView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
-            Button("Autoriser la localisation") {
-                locationService.requestAuthorization()
+            if locationService.needsSettings {
+                Button("Ouvrir les Réglages") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Autoriser la localisation") {
+                    locationService.requestAuthorization()
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .padding()
     }

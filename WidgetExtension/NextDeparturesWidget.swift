@@ -95,7 +95,7 @@ struct SmallWidget: View {
 
                     Text(minuteLabel(entry.minutesFromNow))
                         .font(.caption)
-                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soon : .primary)
+                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soonText : .primary)
                     Spacer()
                 }
             }
@@ -150,7 +150,7 @@ struct MediumWidget: View {
 
                     Text(minuteLabel(entry.minutesFromNow))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soon : .primary)
+                        .foregroundStyle(entry.minutesFromNow <= 2 ? Theme.soonText : .primary)
                 }
             }
         }

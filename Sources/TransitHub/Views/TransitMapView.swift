@@ -321,8 +321,9 @@ struct StopPin: View {
             }
         }
         .buttonStyle(.plain)
+        .minTouchTarget()
         .scaleEffect(isSelected ? 1.5 : 1.0)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        .motionSafe(.spring(duration: 0.2), value: isSelected)
         .accessibilityLabel(String(format: String(localized: "a11y.stop"), stop.name))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -392,7 +393,7 @@ struct MapStopPreviewCard: View {
             } else if groups.isEmpty {
                 emptyText
                     .font(.subheadline)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 14)
             } else {
@@ -467,7 +468,7 @@ struct MapStopPreviewCard: View {
                     .font(.title3)
                     .foregroundStyle(isFavorite ? Theme.favorite : .secondary)
                     .symbolEffect(.bounce, value: isFavorite)
-                    .padding(Spacing.s)
+                    .minTouchTarget()
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"))
@@ -475,7 +476,8 @@ struct MapStopPreviewCard: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(Color(.systemGray3))
+                    .foregroundStyle(Color(.systemGray))
+                    .minTouchTarget()
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Fermer"))

@@ -72,6 +72,7 @@
 "Retards en temps réel" = "Real-time delays";
 "Clé API requise" = "API key required";
 "Accédez aux avis et retards en temps réel en enregistrant votre clé dans les réglages." = "Access real-time alerts and delays by saving your API key in settings.";
+"Ouvrir les Réglages" = "Open Settings";
 "Réglages" = "Settings";
 "Tous" = "All";
 "%lld trajets" = "%lld trips";

@@ -16,7 +16,7 @@ struct CountdownLabel: View {
             .accessibilityLabel(A11y.countdown(minutes))
             // Digits roll instead of snapping when the minute ticks over.
             .contentTransition(.numericText(countsDown: true))
-            .animation(.snappy, value: minutes)
+            .motionSafe(.snappy, value: minutes)
     }
 
     @ViewBuilder
@@ -35,14 +35,14 @@ struct CountdownLabel: View {
                         .font(Typography.countdownUnit(emphasised: emphasised))
                 }
             }
-            .foregroundStyle(emphasised ? Theme.urgencyColor(forMinutes: minutes) : .secondary)
+            .foregroundStyle(emphasised ? Theme.urgencyTextColor(forMinutes: minutes) : .secondary)
         } else {
             let h = minutes / 60
             let m = minutes % 60
             Text(m == 0 ? "\(h)h" : "\(h)h\(String(format: "%02d", m))")
                 .font(Typography.countdownLong(emphasised: emphasised))
                 .monospacedDigit()
-                .foregroundStyle(emphasised ? Theme.urgencyColor(forMinutes: minutes) : .secondary)
+                .foregroundStyle(emphasised ? Theme.urgencyTextColor(forMinutes: minutes) : .secondary)
         }
     }
 }

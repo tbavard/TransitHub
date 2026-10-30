@@ -29,6 +29,59 @@ extension View {
     }
 }
 
+// MARK: - Reduce Motion
+//
+// Spring/scale/bounce effects are replaced by nothing (or a plain fade) when
+// the user enables Settings > Accessibility > Reduce Motion.
+
+private struct MotionSafeAnimation<V: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let animation: Animation
+    let value: V
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : animation, value: value)
+    }
+}
+
+private struct CardScrollTransition: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.scrollTransition { content, phase in
+                content
+                    .opacity(phase.isIdentity ? 1 : 0.4)
+                    .scaleEffect(phase.isIdentity ? 1 : 0.96)
+            }
+        }
+    }
+}
+
+extension View {
+    /// `.animation(_:value:)` that is skipped under Reduce Motion.
+    func motionSafe<V: Equatable>(_ animation: Animation, value: V) -> some View {
+        modifier(MotionSafeAnimation(animation: animation, value: value))
+    }
+
+    /// Gentle fade/scale of cards entering the viewport (no-op under Reduce Motion).
+    func cardScrollTransition() -> some View {
+        modifier(CardScrollTransition())
+    }
+}
+
+// MARK: - Minimum touch target
+
+extension View {
+    /// Expands the tappable area to at least 44×44 pt without changing the
+    /// visual size of the content.
+    func minTouchTarget() -> some View {
+        frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+    }
+}
+
 // MARK: - Brand gradient header
 //
 // A hero surface filled with the signature brand gradient, used by the

@@ -370,7 +370,7 @@ struct ItineraryCard: View {
                 }
             }
             .font(Typography.badge)
-            .foregroundStyle(m >= 1 ? Theme.soon : Theme.brandEnd)
+            .foregroundStyle(m >= 1 ? Theme.soonText : Theme.urgentText)
         }
     }
 

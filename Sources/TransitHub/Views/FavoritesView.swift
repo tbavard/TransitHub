@@ -170,7 +170,7 @@ struct FavoritesView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(.snappy, value: nextFavoriteDeparture?.entry.tripId)
+        .motionSafe(.snappy, value: nextFavoriteDeparture?.entry.tripId)
         .padding(Spacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .brandGradientHeader()
@@ -261,11 +261,7 @@ struct FavoritesView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .scrollTransition { content, phase in
-                        content
-                            .opacity(phase.isIdentity ? 1 : 0.4)
-                            .scaleEffect(phase.isIdentity ? 1 : 0.96)
-                    }
+                    .cardScrollTransition()
                     .contextMenu {
                         Button {
                             withAnimation { appVM.toggleFavorite(stop) }
@@ -292,7 +288,7 @@ struct FavoritesView: View {
                     ))
                 }
             }
-            .animation(.snappy(duration: 0.28), value: homeStops.map(\.favoriteKey))
+            .motionSafe(.snappy(duration: 0.28), value: homeStops.map(\.favoriteKey))
         }
     }
 

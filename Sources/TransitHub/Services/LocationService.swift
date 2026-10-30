@@ -28,6 +28,12 @@ final class LocationService: NSObject, ObservableObject {
         manager.startUpdatingLocation()
     }
 
+    /// The system will not show the permission prompt again: the only way out
+    /// is the Settings app.
+    var needsSettings: Bool {
+        authorizationStatus == .denied || authorizationStatus == .restricted
+    }
+
     var isAuthorized: Bool {
         authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
     }

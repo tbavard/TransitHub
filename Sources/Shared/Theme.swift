@@ -16,9 +16,15 @@ enum Theme {
     /// Secondary brand hue — the "arrival / go" end of the brand gradient.
     static let brandEnd   = Color(hex: "30D158") ?? .green  // vivid green
 
+    /// Deeper stops used only for the gradient that carries white text:
+    /// white on `brandEnd` (#30D158) is ~2.0:1; on these it is >= 4.5:1.
+    private static let brandGradientStart = Color(hex: "0066D6") ?? .blue
+    private static let brandGradientEnd   = Color(hex: "12873A") ?? .green
+
     /// Signature blue → green gradient for hero headers and prominent CTAs.
+    /// Always paired with white foreground text.
     static let brandGradient = LinearGradient(
-        colors: [brandStart, brandEnd],
+        colors: [brandGradientStart, brandGradientEnd],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -45,6 +51,21 @@ enum Theme {
     static func urgencyColor(forMinutes minutes: Int) -> Color {
         if minutes <= 1 { return urgent }
         if minutes <= 5 { return soon }
+        return relaxed
+    }
+
+    /// Text-safe variants of `urgent` / `soon`. The vivid fills are ~2:1 on a
+    /// light card, so light mode uses deeper tones (>= 4.5:1); dark mode keeps
+    /// the vivid ones, which read well on dark surfaces.
+    static let urgentText = Color(light: Color(hex: "1E7E34") ?? .green,
+                                  dark:  Color(hex: "30D158") ?? .green)
+    static let soonText   = Color(light: Color(hex: "A85400") ?? .orange,
+                                  dark:  Color(hex: "FF9F0A") ?? .orange)
+
+    /// Use for countdown/delay *text*; use `urgencyColor` for fills and dots.
+    static func urgencyTextColor(forMinutes minutes: Int) -> Color {
+        if minutes <= 1 { return urgentText }
+        if minutes <= 5 { return soonText }
         return relaxed
     }
 
@@ -90,6 +111,15 @@ enum Theme {
 // stored per provider.
 
 extension Color {
+    /// A color that resolves differently in light and dark appearance.
+    init(light: Color, dark: Color) {
+        #if canImport(UIKit)
+        self.init(UIColor { $0.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light) })
+        #else
+        self = light
+        #endif
+    }
+
     /// A gradient derived from this color: the color itself → a slightly
     /// lighter, hue-shifted variant. Deterministic, no randomness.
     var livelyGradient: LinearGradient {
