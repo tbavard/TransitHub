@@ -118,7 +118,9 @@ struct BottomPanel<Content: View>: View {
     }
 
     private func panelDrag(total: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8)
+        // `.global`: the panel resizes under the finger, so a drag measured in
+        // the panel's own coordinates feeds back into itself and jitters.
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .updating($drag) { value, state, _ in
                 if followsDrag(value.translation.height) { state = value.translation.height }
             }
