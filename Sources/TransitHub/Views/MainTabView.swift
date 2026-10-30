@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum AppTab: Hashable {
+    case home, map, plan, nearby, routes
+}
+
 struct MainTabView: View {
     @EnvironmentObject var appVM: AppViewModel
     @EnvironmentObject var liveActivityManager: LiveActivityManager
@@ -7,21 +11,26 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TabView {
+        TabView(selection: $appVM.selectedTab) {
             FavoritesView()
                 .tabItem { Label("Accueil", systemImage: "house") }
+                .tag(AppTab.home)
 
             TransitMapView(locationService: locationService)
                 .tabItem { Label("Carte", systemImage: "map") }
+                .tag(AppTab.map)
 
             PlanView()
                 .tabItem { Label("Itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
+                .tag(AppTab.plan)
 
             NearbyView(locationService: locationService)
                 .tabItem { Label("À proximité", systemImage: "location") }
+                .tag(AppTab.nearby)
 
             RoutesView()
                 .tabItem { Label("Lignes", systemImage: "list.bullet.rectangle") }
+                .tag(AppTab.routes)
 
         }
         .tint(Theme.brandStart)

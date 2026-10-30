@@ -79,6 +79,8 @@ struct PlanView: View {
             }
             .navigationTitle("Itinéraire")
             .task(id: request) { await plan() }
+            .onAppear { consumePending(appVM.pendingPlanDestination) }
+            .onChange(of: appVM.pendingPlanDestination) { _, stop in consumePending(stop) }
             // Success / error tap when a search finishes.
             .sensoryFeedback(trigger: isPlanning) { wasPlanning, planning in
                 guard wasPlanning, !planning else { return nil }
@@ -131,6 +133,17 @@ struct PlanView: View {
             .background(Color(.tertiarySystemFill), in: Capsule())
         }
         .accessibilityLabel(Text("Réseau"))
+    }
+
+    /// "Y aller" on a stop: plan from the user's position to that stop.
+    private func consumePending(_ stop: Stop?) {
+        guard let stop else { return }
+        storedProviderId = stop.providerId
+        origin = .userLocation
+        destination = .stop(stop)
+        itineraries = []
+        planError = nil
+        appVM.pendingPlanDestination = nil
     }
 
     /// Switching network invalidates both endpoints (they belong to the old one).

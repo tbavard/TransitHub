@@ -320,3 +320,7 @@
 "Réseau" = "Network";
 "Inverser départ et destination" = "Swap origin and destination";
 "Choisissez une destination : les prochains départs s'affichent automatiquement." = "Pick a destination: the next departures show up automatically.";
+"Y aller" = "Go there";
+"À pied" = "On foot";
+"Lieux et adresses" = "Places and addresses";
+"Adresse, lieu ou arrêt" = "Address, place or stop";

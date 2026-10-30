@@ -79,6 +79,14 @@ enum TripPlanner {
                 stopsByProvider: Dictionary(grouping: nearby, by: \.providerId)
             )
 
+        case .place(let place):
+            let nearby = stopsNear(coordinate: place.coordinate, in: allStops)
+            return ResolvedEndpoint(
+                coordinate: place.coordinate,
+                displayName: place.name,
+                stopsByProvider: Dictionary(grouping: nearby, by: \.providerId)
+            )
+
         case .stop(let stop):
             // Include the chosen stop + its close neighbours so we can catch trips
             // that only serve the "other side of the street" stop.

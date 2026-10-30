@@ -206,8 +206,17 @@ struct StopDetailView: View {
             }
 
             StopActionButton(
+                icon: "arrow.triangle.turn.up.right.diamond",
+                label: "Y aller",
+                tint: Theme.brandStart
+            ) {
+                appVM.pendingPlanDestination = stop
+                appVM.selectedTab = .plan
+            }
+
+            StopActionButton(
                 icon: "figure.walk",
-                label: "Itinéraire",
+                label: "À pied",
                 tint: Theme.brandStart
             ) {
                 openInMaps()
