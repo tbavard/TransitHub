@@ -69,7 +69,7 @@ struct TransitStopCard: View {
                     }
                     if groups.count > maxRoutes {
                         HStack {
-                            Text("+ \(groups.count - maxRoutes) autre(s) ligne(s)")
+                            Text(Plural.moreLines(groups.count - maxRoutes))
                                 .font(Typography.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()

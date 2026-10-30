@@ -7,6 +7,16 @@ import Foundation
 // helpers build the localized pieces so every screen phrases departures the
 // same way.
 
+/// Pluralized "+ N more …" labels (rules live in Localizable.stringsdict).
+enum Plural {
+    static func moreLines(_ n: Int) -> String {
+        String.localizedStringWithFormat(NSLocalizedString("more_lines_count", comment: ""), n)
+    }
+    static func moreAlerts(_ n: Int) -> String {
+        String.localizedStringWithFormat(NSLocalizedString("more_alerts_count", comment: ""), n)
+    }
+}
+
 enum A11y {
 
     static func route(_ shortName: String) -> String {

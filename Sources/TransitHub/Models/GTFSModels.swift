@@ -101,10 +101,10 @@ struct Stop: Identifiable, Hashable {
     }
 
     func formattedDistance(from location: CLLocation) -> String {
-        let d = distance(from: location)
-        return d < 1000
-            ? String(format: "%.0f m", d)
-            : String(format: "%.1f km", d / 1000)
+        // Locale-aware: m/km in metric regions, ft/mi elsewhere.
+        Measurement(value: distance(from: location), unit: UnitLength.meters)
+            .formatted(.measurement(width: .abbreviated, usage: .road,
+                                    numberFormatStyle: .number.precision(.fractionLength(0...1))))
     }
 
     func hash(into hasher: inout Hasher) {

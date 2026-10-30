@@ -321,7 +321,7 @@ struct FavoritesView: View {
                     AlertTeaserRow(alert: alert)
                 }
                 if appVM.serviceAlerts.count > 3 {
-                    Text("+ \(appVM.serviceAlerts.count - 3) autre(s) avis")
+                    Text(Plural.moreAlerts(appVM.serviceAlerts.count - 3))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -400,14 +400,11 @@ private struct StopResultRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let loc = appVM.userLocation {
-                        let dist = stop.distance(from: loc)
-                        if dist < 5_000 {
-                            Text("·").font(.caption).foregroundStyle(.tertiary)
-                            Text(dist < 1_000
-                                 ? String(format: "%.0f m", dist)
-                                 : String(format: "%.1f km", dist / 1_000))
+                        if stop.distance(from: loc) < 5_000 {
+                            Text("·").font(.caption).foregroundStyle(.secondary)
+                            Text(stop.formattedDistance(from: loc))
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

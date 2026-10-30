@@ -8,7 +8,6 @@
 "Aucun favori" = "Aucun favori";
 "Appuyez sur ★ dans la fiche d'un arrêt." = "Appuyez sur ★ dans la fiche d'un arrêt.";
 "Avis actifs" = "Avis actifs";
-"+ %lld autre(s) avis" = "+ %lld autre(s) avis";
 "Retirer des favoris" = "Retirer des favoris";
 "Aucun service actif" = "Aucun service actif";
 "Aucun départ prochain" = "Aucun départ prochain";
@@ -291,7 +290,6 @@
 "Impossible de charger les données" = "Impossible de charger les données";
 "Zoomez pour\nvoir les arrêts" = "Zoomez pour\nvoir les arrêts";
 "Voir tous les horaires" = "Voir tous les horaires";
-"+ %lld autre(s) ligne(s)" = "+ %lld autre(s) ligne(s)";
 "%lld/%lld trajets" = "%lld/%lld trajets";
 "Cette ligne ne contient pas d'arrêts dans les données GTFS." = "Cette ligne ne contient pas d'arrêts dans les données GTFS.";
 "Tramway" = "Tramway";

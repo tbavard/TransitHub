@@ -8,7 +8,6 @@
 "Aucun favori" = "No favorites";
 "Appuyez sur ★ dans la fiche d'un arrêt." = "Tap ★ on a stop's detail page.";
 "Avis actifs" = "Active Alerts";
-"+ %lld autre(s) avis" = "+ %lld more alert(s)";
 "Retirer des favoris" = "Remove from favorites";
 "Aucun service actif" = "No active service";
 "Aucun départ prochain" = "No upcoming departure";
@@ -291,7 +290,6 @@
 "Impossible de charger les données" = "Unable to load data";
 "Zoomez pour\nvoir les arrêts" = "Zoom in\nto see stops";
 "Voir tous les horaires" = "See full schedule";
-"+ %lld autre(s) ligne(s)" = "+ %lld more line(s)";
 "%lld/%lld trajets" = "%lld/%lld trips";
 "Cette ligne ne contient pas d'arrêts dans les données GTFS." = "This line has no stops in the GTFS data.";
 "Tramway" = "Tram";
