@@ -72,6 +72,31 @@ extension View {
     }
 }
 
+// MARK: - Scaled decorative icon
+//
+// Large hero/empty-state symbols: sized from a base point size but scaled with
+// Dynamic Type (a fixed `.font(.system(size:))` ignores the user's text size).
+
+private struct ScaledIcon: ViewModifier {
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat
+    let weight: Font.Weight
+
+    init(_ base: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: base, relativeTo: .largeTitle)
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight))
+    }
+}
+
+extension View {
+    func scaledIcon(_ base: CGFloat, weight: Font.Weight = .regular) -> some View {
+        modifier(ScaledIcon(base, weight: weight))
+    }
+}
+
 // MARK: - Minimum touch target
 
 extension View {

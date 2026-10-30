@@ -210,7 +210,7 @@ struct AlertsView: View {
     private var missingKeyView: some View {
         VStack(spacing: 20) {
             Image(systemName: "key.slash.fill")
-                .font(.system(size: 52))
+                .scaledIcon(52)
                 .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.statusWarning)
             Text("Clé API requise")

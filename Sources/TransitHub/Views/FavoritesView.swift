@@ -104,7 +104,6 @@ struct FavoritesView: View {
                     }
                     .background(Theme.screenBackground)
                     .refreshable {
-                        schedulesByStop = [:]
                         await loadSchedules()
                     }
                 }
@@ -295,7 +294,7 @@ struct FavoritesView: View {
     private var emptyStopsCard: some View {
         HStack(spacing: Spacing.lg) {
             Image(systemName: "star.circle")
-                .font(.system(size: 36))
+                .scaledIcon(36)
                 .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.favorite)
             VStack(alignment: .leading, spacing: 3) {

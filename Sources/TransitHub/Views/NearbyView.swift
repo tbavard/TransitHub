@@ -81,7 +81,6 @@ struct NearbyView: View {
         }
         .background(Color(.systemGroupedBackground))
         .refreshable {
-            schedulesByStop = [:]
             await loadSchedules()
         }
     }
@@ -101,7 +100,7 @@ struct NearbyView: View {
     private var locationPermissionPrompt: some View {
         VStack(spacing: 20) {
             Image(systemName: "location.slash.circle.fill")
-                .font(.system(size: 56))
+                .scaledIcon(56)
                 .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.statusWarning)
             Text("Localisation désactivée")

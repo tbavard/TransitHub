@@ -18,7 +18,7 @@ struct NoProvidersView: View {
                     .frame(width: 104, height: 104)
                     .shadow(color: Theme.brandStart.opacity(0.35), radius: 16, x: 0, y: 8)
                 Image(systemName: "tram.fill")
-                    .font(.system(size: 44, weight: .semibold))
+                    .scaledIcon(44, weight: .semibold)
                     .accessibilityHidden(true)   // decorative
                     .foregroundStyle(.white)
             }

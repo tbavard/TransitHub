@@ -68,7 +68,7 @@ struct AddProviderView: View {
     private var hintView: some View {
         VStack(spacing: 16) {
             Image(systemName: "tram.circle")
-                .font(.system(size: 52))
+                .scaledIcon(52)
                 .accessibilityHidden(true)   // decorative
                 .foregroundStyle(Theme.brandStart)
             Text("Recherchez un réseau de transport")
