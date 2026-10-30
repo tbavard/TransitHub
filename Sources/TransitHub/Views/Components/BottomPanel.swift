@@ -37,7 +37,10 @@ struct BottomPanel<Content: View>: View {
     private let content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @GestureState private var drag: CGFloat = 0
+    /// Live finger offset. A plain @State rather than @GestureState: a
+    /// GestureState resets to 0 the instant the finger lifts, before the new
+    /// detent animates in, so the panel dropped back to its old height first.
+    @State private var drag: CGFloat = 0
     @State private var scrollTop: CGFloat = 0
     private let handleHeight: CGFloat = 32
 
@@ -121,16 +124,25 @@ struct BottomPanel<Content: View>: View {
         // `.global`: the panel resizes under the finger, so a drag measured in
         // the panel's own coordinates feeds back into itself and jitters.
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
-            .updating($drag) { value, state, _ in
-                if followsDrag(value.translation.height) { state = value.translation.height }
+            .onChanged { value in
+                drag = followsDrag(value.translation.height) ? value.translation.height : 0
             }
             .onEnded { value in
-                guard followsDrag(value.translation.height) else { return }
+                guard followsDrag(value.translation.height) else {
+                    drag = 0
+                    return
+                }
                 let projected = detent.height(in: total) - value.predictedEndTranslation.height
                 let target = PanelDetent.allCases.min {
                     abs($0.height(in: total) - projected) < abs($1.height(in: total) - projected)
                 } ?? detent
-                withAnimation(reduceMotion ? nil : .snappy) { detent = target }
+                // Release the finger offset in the same animation as the detent
+                // change, so the height travels straight from where the finger
+                // left it to the new resting height.
+                withAnimation(reduceMotion ? nil : .snappy) {
+                    detent = target
+                    drag = 0
+                }
             }
     }
 }
