@@ -102,7 +102,10 @@ struct PlanView: View {
                 .ignoresSafeArea(edges: .top)
 
             BottomPanel(detent: $detent) {
-                ScrollView {
+                if detent == .collapsed {
+                    collapsedSummary
+                        .padding(.horizontal, Spacing.xl)
+                } else {
                     VStack(alignment: .leading, spacing: Spacing.md) {
                         if providersStore.providers.count > 1 { networkMenu }
                         endpointsCard
@@ -112,10 +115,56 @@ struct PlanView: View {
                     .padding(.horizontal, Spacing.xl)
                     .padding(.bottom, Spacing.xxxl)
                 }
-                .refreshable { await plan() }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// What the panel shows when pulled down: destination + the chosen trip's
+    /// times. Tapping it brings the panel back up.
+    private var collapsedSummary: some View {
+        Button {
+            withMotionAnimation(.snappy) { detent = .half }
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                    .font(.title3)
+                    .foregroundStyle(Theme.brandStart)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    if let destination {
+                        Text(destination.displayName)
+                            .font(Typography.cardTitle)
+                            .lineLimit(1)
+                    } else {
+                        Text("Où allez-vous ?")
+                            .font(Typography.cardTitle)
+                    }
+                    if let sel = selectedItinerary {
+                        HStack(spacing: Spacing.s) {
+                            Text(sel.departureDate, style: .time)
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .accessibilityHidden(true)
+                            Text(sel.arrivalDate, style: .time)
+                            Text("· \(sel.totalMinutes) min")
+                        }
+                        .font(Typography.body)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.up")
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(.primary)
+            .padding(.vertical, Spacing.sm)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var selectedItinerary: TripItinerary? {
