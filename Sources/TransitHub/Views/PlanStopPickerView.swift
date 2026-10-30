@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import MapKit
 
 /// Sheet for picking a trip endpoint. Offers:
 /// - "Ma position" (if location is available)
@@ -10,21 +11,32 @@ struct PlanStopPickerView: View {
     @EnvironmentObject var appVM: AppViewModel
     @Environment(\.dismiss) private var dismiss
 
+    /// Only this network's stops are offered (one network per search).
+    let providerId: String
     let onSelect: (PlanEndpoint) -> Void
 
     @State private var searchText = ""
+    @StateObject private var places = PlaceSearcher()
+    @State private var isResolvingPlace = false
 
     private var searchStopResults: [Stop] {
         guard searchText.count >= 2 else { return [] }
         let q = searchText.lowercased()
         return Array(appVM.stops.lazy.filter {
-            $0.name.lowercased().contains(q) || $0.id == searchText
+            $0.providerId == providerId
+                && ($0.name.lowercased().contains(q) || $0.id == searchText)
         }.prefix(40))
+    }
+
+    private var favoriteStops: [Stop] {
+        appVM.favoriteStops.filter { $0.providerId == providerId }
     }
 
     private var nearbyStops: [Stop] {
         guard let loc = appVM.userLocation else { return [] }
-        return appVM.nearestStops(to: loc, count: 10)
+        return Array(appVM.nearestStops(to: loc, count: 60)
+            .filter { $0.providerId == providerId }
+            .prefix(10))
     }
 
     var body: some View {
@@ -49,23 +61,31 @@ struct PlanStopPickerView: View {
 
                 if !searchText.isEmpty {
                     let stops = searchStopResults
-                    if stops.isEmpty {
-                        Section {
-                            Text("Aucun arrêt trouvé")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                    if !places.suggestions.isEmpty {
+                        Section("Lieux et adresses") {
+                            ForEach(places.suggestions.prefix(6), id: \.self) { suggestion in
+                                placeRow(suggestion)
+                            }
                         }
-                    } else {
-                        Section("Résultats") {
+                    }
+                    if !stops.isEmpty {
+                        Section("Arrêts") {
                             ForEach(stops) { stop in
                                 stopRow(stop)
                             }
                         }
                     }
+                    if stops.isEmpty && places.suggestions.isEmpty {
+                        Section {
+                            Text("Aucun résultat")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 } else {
-                    if !appVM.favoriteStops.isEmpty {
+                    if !favoriteStops.isEmpty {
                         Section("Favoris") {
-                            ForEach(appVM.favoriteStops) { stop in
+                            ForEach(favoriteStops) { stop in
                                 stopRow(stop)
                             }
                         }
@@ -81,7 +101,14 @@ struct PlanStopPickerView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .searchable(text: $searchText, prompt: "Rechercher un arrêt")
+            .searchable(text: $searchText, prompt: "Adresse, lieu ou arrêt")
+            .onChange(of: searchText) { _, text in places.update(query: text) }
+            .onAppear {
+                let center = appVM.userLocation?.coordinate
+                    ?? appVM.stops.first(where: { $0.providerId == providerId })?.coordinate
+                if let center { places.setRegion(around: center) }
+            }
+            .overlay { if isResolvingPlace { ProgressView() } }
             .navigationTitle("Choisir un lieu")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -90,6 +117,42 @@ struct PlanStopPickerView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func placeRow(_ suggestion: MKLocalSearchCompletion) -> some View {
+        Button {
+            guard !isResolvingPlace else { return }
+            isResolvingPlace = true
+            Task {
+                let place = await places.resolve(suggestion)
+                isResolvingPlace = false
+                if let place {
+                    onSelect(.place(place))
+                    dismiss()
+                }
+            }
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: "mappin.circle.fill")
+                    .foregroundStyle(Theme.statusCritical)
+                    .frame(width: 20)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(suggestion.title)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if !suggestion.subtitle.isEmpty {
+                        Text(suggestion.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -106,13 +169,10 @@ struct PlanStopPickerView: View {
                     Text(stop.name)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    HStack(spacing: 6) {
-                        ProviderBadge(providerId: stop.providerId)
-                        if let loc = appVM.userLocation {
-                            Text(stop.formattedDistance(from: loc))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    if let loc = appVM.userLocation {
+                        Text(stop.formattedDistance(from: loc))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer()

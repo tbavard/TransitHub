@@ -106,6 +106,12 @@ final class AppViewModel: ObservableObject {
 
     @Published var userLocation: CLLocation? = nil
 
+    // MARK: - Cross-tab navigation
+    /// Selected tab; lets a stop screen jump to the planner.
+    @Published var selectedTab: AppTab = .home
+    /// Set by "Y aller" on a stop; consumed (and cleared) by the planner tab.
+    @Published var pendingPlanDestination: Stop?
+
     // MARK: - Favorites
     // Keys are stored as "providerId:stopId" (e.g. "mdb-2126:51425").
 
@@ -188,18 +194,20 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Trip planning
 
-    /// Plans direct (single-vehicle) trips between origin and destination. MVP — no transfers.
+    /// Plans trips (direct, or with one transfer) on a single network.
     func planTrip(
         from origin: PlanEndpoint,
         to destination: PlanEndpoint,
+        providerId: String,
         departAt: Date = Date()
     ) async throws -> [TripItinerary] {
         let snapshotStops = stops
         let loc = userLocation
         let liveTrips = tripUpdatesByProvider
-        return try await TripPlanner.planDirect(
+        return try await TripPlanner.plan(
             from: origin,
             to: destination,
+            providerId: providerId,
             allStops: snapshotStops,
             userLocation: loc,
             departAt: departAt,

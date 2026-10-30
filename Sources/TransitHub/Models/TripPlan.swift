@@ -3,14 +3,28 @@ import CoreLocation
 
 // MARK: - Trip endpoint (user-chosen origin or destination)
 
+/// An address or point of interest picked from the place search.
+struct PlaceRef: Equatable, Hashable {
+    let name: String
+    let subtitle: String
+    let lat: Double
+    let lon: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+}
+
 enum PlanEndpoint: Equatable, Hashable {
     case userLocation
     case stop(Stop)
+    case place(PlaceRef)
 
     var displayName: String {
         switch self {
         case .userLocation:  return String(localized: "plan.my_location")
         case .stop(let s):   return s.name
+        case .place(let p):  return p.name
         }
     }
 
@@ -126,6 +140,8 @@ enum TripPlanError: LocalizedError {
     case sameEndpoint
     case noLocationAvailable
     case noRouteFound
+    case noStopsNearOrigin
+    case noStopsNearDestination
 
     var errorDescription: String? {
         switch self {
@@ -134,6 +150,8 @@ enum TripPlanError: LocalizedError {
         case .sameEndpoint:       return String(localized: "plan.error.same_endpoint")
         case .noLocationAvailable:return String(localized: "plan.error.no_location")
         case .noRouteFound:       return String(localized: "plan.error.no_route")
+        case .noStopsNearOrigin:      return String(localized: "plan.error.no_stops_origin")
+        case .noStopsNearDestination: return String(localized: "plan.error.no_stops_destination")
         }
     }
 }
