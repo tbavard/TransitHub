@@ -333,3 +333,8 @@
 "Maintenant" = "Maintenant";
 "Dans %lld min" = "Dans %lld min";
 "%lld min à pied" = "%lld min à pied";
+"notif.alight.title" = "Descendez au prochain arrêt";
+"notif.alight.body" = "Correspondance à %@ : ligne %@.";
+"notif.connection.title" = "Correspondance compromise";
+"notif.connection.body" = "La ligne %@ arrive vers %@ ; la ligne %@ part à %@.";
+"live.connection_at_risk" = "Correspondance à risque";

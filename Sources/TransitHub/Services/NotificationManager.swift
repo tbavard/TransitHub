@@ -91,6 +91,56 @@ final class NotificationManager {
         await schedule(id: id, fireDate: fireDate, content: content)
     }
 
+    /// "Get off at the next stop" before a transfer.
+    func scheduleAlight(
+        id: String,
+        fireDate: Date,
+        stopName: String,
+        nextRouteShortName: String
+    ) async {
+        guard fireDate.timeIntervalSinceNow > 0 else { return }
+        guard await requestAuthorization() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "notif.alight.title")
+        content.body = String(
+            format: String(localized: "notif.alight.body"),
+            stopName, nextRouteShortName
+        )
+        content.sound = .default
+        content.categoryIdentifier = "GO_ALIGHT"
+        content.threadIdentifier = "stm.go"
+
+        await schedule(id: id, fireDate: fireDate, content: content)
+    }
+
+    /// Delivered right away: live delays now make the transfer impossible.
+    func notifyConnectionAtRisk(
+        id: String,
+        fromRoute: String,
+        arrival: Date,
+        toRoute: String,
+        departure: Date
+    ) async {
+        guard await requestAuthorization() else { return }
+
+        let time = DateFormatter()
+        time.locale = .autoupdatingCurrent
+        time.setLocalizedDateFormatFromTemplate("Hm")
+
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "notif.connection.title")
+        content.body = String(
+            format: String(localized: "notif.connection.body"),
+            fromRoute, time.string(from: arrival), toRoute, time.string(from: departure)
+        )
+        content.sound = .default
+        content.categoryIdentifier = "GO_CONNECTION"
+        content.threadIdentifier = "stm.go"
+
+        await schedule(id: id, fireDate: Date(), content: content)
+    }
+
     // MARK: - Cancellation
 
     func cancel(ids: [String]) {

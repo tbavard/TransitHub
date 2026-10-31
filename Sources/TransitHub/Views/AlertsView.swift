@@ -139,9 +139,12 @@ struct AlertsView: View {
             Spacer()
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(color.opacity(0.1))
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.md)
+        .background(color.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.sm)
     }
 
     // MARK: - Combined content
@@ -149,7 +152,6 @@ struct AlertsView: View {
     private var avisContent: some View {
         VStack(spacing: 0) {
             networkStatusBanner
-            Divider()
             if !affectedRoutes.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

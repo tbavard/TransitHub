@@ -229,8 +229,8 @@ struct TransitHubLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    RouteTag(shortName: context.attributes.routeShortName,
-                             colorHex: context.attributes.routeColor)
+                    RouteTag(shortName: context.routeShortName,
+                             colorHex: context.routeColor)
                         .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -239,7 +239,7 @@ struct TransitHubLiveActivityWidget: Widget {
                         .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.headsign)
+                    Text(context.headsign)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -247,7 +247,7 @@ struct TransitHubLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
                         Image(systemName: "mappin.circle")
-                        Text(context.attributes.stopName)
+                        Text(context.stopName)
                         Spacer()
                         Text(context.state.statusMessage)
                     }
@@ -256,8 +256,8 @@ struct TransitHubLiveActivityWidget: Widget {
                     .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                RouteTag(shortName: context.attributes.routeShortName,
-                         colorHex: context.attributes.routeColor)
+                RouteTag(shortName: context.routeShortName,
+                         colorHex: context.routeColor)
             } compactTrailing: {
                 MinutesBadge(minutes: context.state.minutesUntilDeparture,
                              isDelayed: context.state.isDelayed)
@@ -275,7 +275,7 @@ struct LockScreenLiveActivityView: View {
     let context: ActivityViewContext<DepartureAttributes>
 
     var routeColor: Color {
-        Color(hex: context.attributes.routeColor) ?? Theme.brandStart
+        Color(hex: context.routeColor) ?? Theme.brandStart
     }
 
     var body: some View {
@@ -284,18 +284,18 @@ struct LockScreenLiveActivityView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(routeColor)
                     .frame(width: 48, height: 36)
-                Text(context.attributes.routeShortName)
+                Text(context.routeShortName)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(context.attributes.headsign)
+                Text(context.headsign)
                     .font(.subheadline.weight(.semibold))
                 HStack {
                     Image(systemName: "mappin.circle")
                         .font(.caption2)
-                    Text(context.attributes.stopName)
+                    Text(context.stopName)
                         .font(.caption)
                 }
                 .foregroundStyle(.secondary)
@@ -349,4 +349,13 @@ struct MinutesBadge: View {
                 .foregroundStyle(isDelayed ? Theme.statusCritical : .primary)
         }
     }
+}
+
+// MARK: - Live Activity values (state overrides the static attributes)
+
+private extension ActivityViewContext where Attributes == DepartureAttributes {
+    var routeShortName: String { state.routeShortName ?? attributes.routeShortName }
+    var routeColor: String { state.routeColor ?? attributes.routeColor }
+    var headsign: String { state.headsign ?? attributes.headsign }
+    var stopName: String { state.stopName ?? attributes.stopName }
 }

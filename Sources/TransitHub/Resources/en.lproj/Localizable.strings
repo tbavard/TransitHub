@@ -334,3 +334,8 @@
 "Maintenant" = "Now";
 "Dans %lld min" = "In %lld min";
 "%lld min à pied" = "%lld min walk";
+"notif.alight.title" = "Get off at the next stop";
+"notif.alight.body" = "Transfer at %@: line %@.";
+"notif.connection.title" = "Connection at risk";
+"notif.connection.body" = "Line %@ arrives around %@; line %@ leaves at %@.";
+"live.connection_at_risk" = "Connection at risk";

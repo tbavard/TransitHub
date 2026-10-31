@@ -37,39 +37,63 @@ struct RoutesView: View {
                 }
             }
             .navigationTitle("Lignes")
+            .navigationBarTitleDisplayMode(.inline)
             .appDestinations()
         }
     }
 
+    // A real List (not ScrollView + LazyVStack): the cards have different
+    // heights (one or two lines of text), which made a lazy stack with pinned
+    // headers blank out rows while scrolling. List recycles cells reliably.
     private var routesList: some View {
         List {
+            if providersStore.providers.count > 1 {
+                providerFilterStrip
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
             if !recentRoutes.isEmpty {
                 Section {
-                    ForEach(recentRoutes) { route in
-                        NavigationLink(value: AppDestination.route(route)) {
-                            RouteRow(route: route)
-                        }
-                    }
+                    ForEach(recentRoutes) { route in routeRow(route) }
                 } header: {
                     Label("Récentes", systemImage: "clock.arrow.circlepath")
+                        .font(Typography.sectionTitle)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
             }
             ForEach(filteredRoutesByType, id: \.label) { section in
-                Section(section.label) {
-                    ForEach(section.routes) { route in
-                        NavigationLink(value: AppDestination.route(route)) {
-                            RouteRow(route: route)
-                        }
-                    }
+                Section {
+                    ForEach(section.routes) { route in routeRow(route) }
+                } header: {
+                    Text(section.label)
+                        .font(Typography.sectionTitle)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Theme.screenBackground)
         .searchable(text: $searchText, prompt: "Rechercher une ligne")
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if providersStore.providers.count > 1 {
-                providerFilterStrip
-            }
-        }
+    }
+
+    /// One rounded card per line. The NavigationLink sits invisibly behind it
+    /// so the list does not add its own disclosure chevron next to the card.
+    private func routeRow(_ route: Route) -> some View {
+        RouteCard(route: route)
+            .background(
+                NavigationLink(value: AppDestination.route(route)) { EmptyView() }
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            )
+            .accessibilityAddTraits(.isButton)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Spacing.xs, leading: Spacing.xl,
+                                      bottom: Spacing.xs, trailing: Spacing.xl))
     }
 
     private var providerFilterStrip: some View {
@@ -90,7 +114,6 @@ struct RoutesView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        .background(.bar)
         .selectionFeedback(providerFilter)
     }
 
@@ -126,6 +149,44 @@ private struct ProviderFilterChip: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - Route card (lines list)
+
+private struct RouteCard: View {
+    let route: Route
+
+    var body: some View {
+        let tint = route.officialRouteColor
+        HStack(spacing: Spacing.md) {
+            Text(route.shortName)
+                .font(.system(.title3, design: .rounded, weight: .heavy))
+                .foregroundStyle(tint.readableForeground)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: 60, height: 44)
+                .background(tint.livelyGradient,
+                            in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(route.longName)
+                    .font(Typography.cardTitle)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                Label(route.routeType.label, systemImage: route.routeType.icon)
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(Typography.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .padding(Spacing.md)
+        .background(Theme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -10,6 +10,14 @@ struct DepartureAttributes: ActivityAttributes {
         var minutesUntilDeparture: Int
         var isDelayed: Bool
         var statusMessage: String
+
+        // The static attributes below describe the first ride. After a
+        // transfer the app fills these in so the same activity shows the
+        // second ride (nil = keep the static value).
+        var routeShortName: String? = nil
+        var routeColor: String? = nil
+        var headsign: String? = nil
+        var stopName: String? = nil
     }
 
     // Static info — fixed at activity creation
