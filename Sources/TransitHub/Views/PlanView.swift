@@ -487,8 +487,25 @@ struct PlanView: View {
                 .padding(.vertical, Spacing.xxxl)
         } else {
             VStack(spacing: Spacing.m) {
+                if let axis = ItineraryTimeline.axis(for: itineraries) {
+                    HStack {
+                        Text(axis.start, style: .time)
+                        Spacer()
+                        Text(Date(timeIntervalSince1970: (axis.start.timeIntervalSince1970 + axis.end.timeIntervalSince1970) / 2),
+                             style: .time)
+                        Spacer()
+                        Text(axis.end, style: .time)
+                    }
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .padding(.horizontal, Spacing.lg)
+                    .accessibilityHidden(true)
+                }
                 ForEach(itineraries) { itin in
-                    ItineraryCard(itin: itin, isSelected: itin.id == selectedID)
+                    ItineraryCard(itin: itin, isSelected: itin.id == selectedID,
+                                  axisStart: ItineraryTimeline.axis(for: itineraries)?.start ?? itin.departureDate,
+                                  axisEnd: ItineraryTimeline.axis(for: itineraries)?.end ?? itin.arrivalDate)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedID = itin.id
@@ -571,11 +588,17 @@ extension PlanPickerRole: Identifiable {
 }
 
 // MARK: - Itinerary card
+//
+// Collapsed: the option on the shared time axis (pills where each ride
+// happens), "Dans N min" and the total duration. Selected: the step-by-step
+// legs and the "Partir" button.
 
 struct ItineraryCard: View {
     @EnvironmentObject var liveActivityManager: LiveActivityManager
     let itin: TripItinerary
     var isSelected: Bool = false
+    let axisStart: Date
+    let axisEnd: Date
 
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
@@ -586,34 +609,125 @@ struct ItineraryCard: View {
 
     private var isTracked: Bool { liveActivityManager.isTracking(itinerary: itin) }
     private var canGo: Bool { itin.departureDate.timeIntervalSinceNow > -60 }
+    private var isLive: Bool { itin.transitLegs.first?.liveDelaySeconds != nil }
+
+    private var minutesToDeparture: Int {
+        max(0, Int((itin.departureDate.timeIntervalSinceNow / 60).rounded(.down)))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
-            header
-            Divider()
-            legStrip
-            if !itin.transitLegs.isEmpty {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    ForEach(itin.transitLegs) { t in
-                        Text(summary(for: t))
-                            .font(Typography.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            ItineraryTimelineBar(itinerary: itin, axisStart: axisStart, axisEnd: axisEnd)
+                .accessibilityHidden(true)
+
+            summaryRow
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityDescription)
+
+            if isSelected {
+                Divider()
+                if let delay = itin.transitLegs.first?.liveDelaySeconds {
+                    liveBadge(delayMinutes: Int((Double(delay) / 60).rounded()))
                 }
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    ForEach(itin.legs) { leg in stepRow(leg) }
+                }
+                if canGo { goButton }
             }
-            if canGo { goButton }
         }
         .padding(Spacing.lg)
         .background(Theme.cardBackground,
-                    in: RoundedRectangle(cornerRadius: Radius.xl))
+                    in: RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
+            RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
                 .strokeBorder(isTracked ? Theme.brandStart.opacity(0.5)
                                         : isSelected ? Theme.brandStart
                                                      : Color(.separator).opacity(0.25),
                               lineWidth: isTracked ? 1.5 : (isSelected ? 2 : 0.5))
         )
         .trackingFeedback(isTracked)
+    }
+
+    // MARK: Summary
+
+    private var summaryRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
+            HStack(spacing: Spacing.xs) {
+                if minutesToDeparture == 0 {
+                    Text("Maintenant")
+                } else {
+                    Text("Dans \(minutesToDeparture) min")
+                }
+                if isLive { LiveIndicator() }
+            }
+            .font(Typography.body.weight(.bold))
+            .foregroundStyle(isLive ? Theme.urgentText : Color.primary)
+
+            Spacer()
+
+            Text("\(itin.totalMinutes) min")
+                .font(Typography.body.weight(.semibold))
+                .monospacedDigit()
+            Text("→ \(Self.timeFmt.string(from: itin.arrivalDate))")
+                .font(Typography.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+
+    private var accessibilityDescription: String {
+        A11y.join([
+            itin.transitLegs.map { A11y.route($0.routeShortName) }.joined(separator: ", "),
+            String(localized: itin.transitLegs.count > 1 ? "1 correspondance" : "Direct"),
+            minutesToDeparture == 0
+                ? String(localized: "Maintenant")
+                : String(localized: "Dans \(minutesToDeparture) min"),
+            String(localized: "Durée : \(itin.totalMinutes) min"),
+            Self.timeFmt.string(from: itin.arrivalDate)
+        ])
+    }
+
+    // MARK: Steps (selected)
+
+    @ViewBuilder
+    private func stepRow(_ leg: TripLeg) -> some View {
+        switch leg {
+        case .walk(let walk):
+            Label("\(walk.walkMinutes) min à pied", systemImage: "figure.walk")
+                .font(Typography.caption)
+                .foregroundStyle(.secondary)
+        case .transit(let transit):
+            HStack(spacing: Spacing.s) {
+                RoutePill(shortName: transit.routeShortName, color: transit.routeColor)
+                Text(summary(for: transit))
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func summary(for t: TransitLeg) -> String {
+        let count = t.numStops - 1
+        let stopsText = count == 1 ? String(localized: "1 arrêt") : String(localized: "\(count) arrêts")
+        return "\(t.fromStop.name) → \(t.toStop.name) · \(stopsText)"
+    }
+
+    /// Times above already include the live delay; this says so.
+    private func liveBadge(delayMinutes m: Int) -> some View {
+        HStack(spacing: Spacing.xs) {
+            LiveIndicator()
+            Group {
+                if m >= 1 {
+                    Text("Retard \(m) min")
+                } else if m <= -1 {
+                    Text("Avance \(-m) min")
+                } else {
+                    Text("À l'heure")
+                }
+            }
+            .font(Typography.badge)
+            .foregroundStyle(m >= 1 ? Theme.soonText : Theme.urgentText)
+        }
     }
 
     private var goButton: some View {
@@ -639,86 +753,5 @@ struct ItineraryCard: View {
         }
         .buttonStyle(.plain)
         .motionSafe(.easeInOut(duration: 0.2), value: isTracked)
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                HStack(spacing: Spacing.s) {
-                    Text(Self.timeFmt.string(from: itin.departureDate))
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                    Image(systemName: "arrow.right")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text(Self.timeFmt.string(from: itin.arrivalDate))
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                }
-                HStack(spacing: Spacing.s) {
-                    Text("Durée : \(itin.totalMinutes) min")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("·")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    (itin.transitLegs.count > 1 ? Text("1 correspondance") : Text("Direct"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let delay = itin.transitLegs.first?.liveDelaySeconds {
-                        liveBadge(delayMinutes: Int((Double(delay) / 60).rounded()))
-                    }
-                }
-            }
-            Spacer()
-        }
-    }
-
-    /// Times above already include the live delay; this says so.
-    private func liveBadge(delayMinutes m: Int) -> some View {
-        HStack(spacing: Spacing.xs) {
-            LiveIndicator()
-            Group {
-                if m >= 1 {
-                    Text("Retard \(m) min")
-                } else if m <= -1 {
-                    Text("Avance \(-m) min")
-                } else {
-                    Text("À l'heure")
-                }
-            }
-            .font(Typography.badge)
-            .foregroundStyle(m >= 1 ? Theme.soonText : Theme.urgentText)
-        }
-    }
-
-    /// Walk and route pills in order, e.g. 🚶3 min · [55] · 🚶1 min · [10] · 🚶4 min.
-    private var legStrip: some View {
-        HStack(spacing: Spacing.sm) {
-            ForEach(Array(itin.legs.enumerated()), id: \.offset) { _, leg in
-                switch leg {
-                case .walk(let w):
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: "figure.walk")
-                            .font(.caption2.weight(.bold))
-                            .accessibilityHidden(true)
-                        Text("\(w.walkMinutes) min")
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(.secondary)
-                case .transit(let t):
-                    RoutePill(shortName: t.routeShortName, color: t.routeColor)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func summary(for t: TransitLeg) -> String {
-        let count = t.numStops - 1
-        let stopsText = count == 1 ? String(localized: "1 arrêt") : String(localized: "\(count) arrêts")
-        return "\(t.fromStop.name) → \(t.toStop.name) · \(stopsText)"
     }
 }
