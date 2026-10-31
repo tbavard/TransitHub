@@ -58,6 +58,15 @@ enum FeedPeriodSelector {
             .max { ($0.downloaded_at ?? "") < ($1.downloaded_at ?? "") }
     }
 
+    /// Whether the schedules already installed still cover `today`. Used when
+    /// the producer's feed only starts later and no archived snapshot covers
+    /// today: replacing the installed data with a period that has not begun
+    /// would blank every schedule, so it is kept until that period starts.
+    static func canKeepInstalled(feedStart: String?, feedEnd: String?, today: String) -> Bool {
+        guard let start = feedStart, let end = feedEnd else { return false }
+        return start <= today && today <= end
+    }
+
     /// Earliest service day declared by an extracted GTFS feed: MIN of
     /// calendar.start_date and of calendar_dates added dates (exception 1).
     static func startDay(calendarStartDates: [String], addedExceptionDates: [String]) -> String? {
