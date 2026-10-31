@@ -330,3 +330,6 @@
 "Profil et réglages" = "Profil et réglages";
 "Horaire" = "Horaire";
 "Touchez l'étoile d'un arrêt, sur la carte, pour le retrouver ici." = "Touchez l'étoile d'un arrêt, sur la carte, pour le retrouver ici.";
+"Maintenant" = "Maintenant";
+"Dans %lld min" = "Dans %lld min";
+"%lld min à pied" = "%lld min à pied";

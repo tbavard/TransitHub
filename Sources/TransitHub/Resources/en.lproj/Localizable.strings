@@ -331,3 +331,6 @@
 "Profil et réglages" = "Profile and settings";
 "Horaire" = "Scheduled";
 "Touchez l'étoile d'un arrêt, sur la carte, pour le retrouver ici." = "Tap the star on a stop, on the map, to find it here.";
+"Maintenant" = "Now";
+"Dans %lld min" = "In %lld min";
+"%lld min à pied" = "%lld min walk";
