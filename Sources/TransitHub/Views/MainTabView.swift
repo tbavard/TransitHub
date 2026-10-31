@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case home, map, plan, nearby, routes
+    case map, favorites, routes, alerts
 }
 
 struct MainTabView: View {
@@ -12,26 +12,22 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $appVM.selectedTab) {
-            FavoritesView()
-                .tabItem { Label("Accueil", systemImage: "house") }
-                .tag(AppTab.home)
-
+            // Home: map + nearby panel (the trip planner opens from its search bar).
             TransitMapView(locationService: locationService)
                 .tabItem { Label("Carte", systemImage: "map") }
                 .tag(AppTab.map)
 
-            PlanView()
-                .tabItem { Label("Itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
-                .tag(AppTab.plan)
-
-            NearbyView(locationService: locationService)
-                .tabItem { Label("À proximité", systemImage: "location") }
-                .tag(AppTab.nearby)
+            FavoritesView()
+                .tabItem { Label("Favoris", systemImage: "star") }
+                .tag(AppTab.favorites)
 
             RoutesView()
                 .tabItem { Label("Lignes", systemImage: "list.bullet.rectangle") }
                 .tag(AppTab.routes)
 
+            AlertsView()
+                .tabItem { Label("Avis", systemImage: "exclamationmark.triangle") }
+                .tag(AppTab.alerts)
         }
         .tint(Theme.brandStart)
         .onAppear {

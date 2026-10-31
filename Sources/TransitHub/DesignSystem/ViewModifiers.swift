@@ -6,7 +6,7 @@ import SwiftUI
 // border + crisp shadow" pattern used by every card in the app.
 
 struct CardModifier: ViewModifier {
-    var cornerRadius: CGFloat = Radius.xl
+    var cornerRadius: CGFloat = Radius.xxl
     var elevated: Bool = false
 
     func body(content: Content) -> some View {
@@ -24,7 +24,7 @@ struct CardModifier: ViewModifier {
 
 extension View {
     /// Standard card surface (background + radius + hairline + shadow).
-    func card(cornerRadius: CGFloat = Radius.xl, elevated: Bool = false) -> some View {
+    func card(cornerRadius: CGFloat = Radius.xxl, elevated: Bool = false) -> some View {
         modifier(CardModifier(cornerRadius: cornerRadius, elevated: elevated))
     }
 }
@@ -103,6 +103,26 @@ extension View {
     func scaledIcon(_ base: CGFloat, weight: Font.Weight = .regular) -> some View {
         modifier(ScaledIcon(base, weight: weight))
     }
+}
+
+// MARK: - Floating round button
+//
+// White circular buttons floating over the map (profile, locate, close…).
+
+struct FloatingCircleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 44, height: 44)
+            .background(Color(.systemBackground), in: Circle())
+            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 2)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+extension ButtonStyle where Self == FloatingCircleButtonStyle {
+    static var floatingCircle: FloatingCircleButtonStyle { FloatingCircleButtonStyle() }
 }
 
 // MARK: - Minimum touch target

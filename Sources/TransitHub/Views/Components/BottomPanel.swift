@@ -116,8 +116,11 @@ struct BottomPanel<Content: View>: View {
 
     /// At full height the content scrolls, so the panel only follows a drag
     /// that pulls down from the very top of the content.
-    private func followsDrag(_ translation: CGFloat) -> Bool {
-        detent != .full || (contentAtTop && translation > 0)
+    /// Mostly-horizontal drags belong to whatever is inside (swiping through a
+    /// card's departures), never to the panel.
+    private func followsDrag(_ translation: CGSize) -> Bool {
+        guard abs(translation.height) >= abs(translation.width) else { return false }
+        return detent != .full || (contentAtTop && translation.height > 0)
     }
 
     private func panelDrag(total: CGFloat) -> some Gesture {
@@ -125,10 +128,10 @@ struct BottomPanel<Content: View>: View {
         // the panel's own coordinates feeds back into itself and jitters.
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
             .onChanged { value in
-                drag = followsDrag(value.translation.height) ? value.translation.height : 0
+                drag = followsDrag(value.translation) ? value.translation.height : 0
             }
             .onEnded { value in
-                guard followsDrag(value.translation.height) else {
+                guard followsDrag(value.translation) else {
                     drag = 0
                     return
                 }
