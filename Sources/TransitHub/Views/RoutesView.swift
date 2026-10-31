@@ -37,6 +37,7 @@ struct RoutesView: View {
                 }
             }
             .navigationTitle("Lignes")
+            .navigationBarTitleDisplayMode(.inline)
             .appDestinations()
         }
     }
@@ -46,6 +47,12 @@ struct RoutesView: View {
     // headers blank out rows while scrolling. List recycles cells reliably.
     private var routesList: some View {
         List {
+            if providersStore.providers.count > 1 {
+                providerFilterStrip
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
             if !recentRoutes.isEmpty {
                 Section {
                     ForEach(recentRoutes) { route in routeRow(route) }
@@ -71,11 +78,6 @@ struct RoutesView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.screenBackground)
         .searchable(text: $searchText, prompt: "Rechercher une ligne")
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if providersStore.providers.count > 1 {
-                providerFilterStrip
-            }
-        }
     }
 
     /// One rounded card per line. The NavigationLink sits invisibly behind it
@@ -112,7 +114,6 @@ struct RoutesView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        .background(.bar)
         .selectionFeedback(providerFilter)
     }
 
