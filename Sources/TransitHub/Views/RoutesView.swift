@@ -41,29 +41,34 @@ struct RoutesView: View {
         }
     }
 
+    // A real List (not ScrollView + LazyVStack): the cards have different
+    // heights (one or two lines of text), which made a lazy stack with pinned
+    // headers blank out rows while scrolling. List recycles cells reliably.
     private var routesList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.md, pinnedViews: .sectionHeaders) {
-                if !recentRoutes.isEmpty {
-                    Section {
-                        ForEach(recentRoutes) { route in routeLink(route) }
-                    } header: {
-                        sectionHeader {
-                            Label("Récentes", systemImage: "clock.arrow.circlepath")
-                        }
-                    }
-                }
-                ForEach(filteredRoutesByType, id: \.label) { section in
-                    Section {
-                        ForEach(section.routes) { route in routeLink(route) }
-                    } header: {
-                        sectionHeader { Text(section.label) }
-                    }
+        List {
+            if !recentRoutes.isEmpty {
+                Section {
+                    ForEach(recentRoutes) { route in routeRow(route) }
+                } header: {
+                    Label("Récentes", systemImage: "clock.arrow.circlepath")
+                        .font(Typography.sectionTitle)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
             }
-            .padding(.horizontal, Spacing.xl)
-            .padding(.bottom, Spacing.xxxl)
+            ForEach(filteredRoutesByType, id: \.label) { section in
+                Section {
+                    ForEach(section.routes) { route in routeRow(route) }
+                } header: {
+                    Text(section.label)
+                        .font(Typography.sectionTitle)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                }
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(Theme.screenBackground)
         .searchable(text: $searchText, prompt: "Rechercher une ligne")
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -73,20 +78,20 @@ struct RoutesView: View {
         }
     }
 
-    private func routeLink(_ route: Route) -> some View {
-        NavigationLink(value: AppDestination.route(route)) {
-            RouteCard(route: route)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func sectionHeader<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        content()
-            .font(Typography.sectionTitle)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, Spacing.sm)
-            .background(Theme.screenBackground)
+    /// One rounded card per line. The NavigationLink sits invisibly behind it
+    /// so the list does not add its own disclosure chevron next to the card.
+    private func routeRow(_ route: Route) -> some View {
+        RouteCard(route: route)
+            .background(
+                NavigationLink(value: AppDestination.route(route)) { EmptyView() }
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            )
+            .accessibilityAddTraits(.isButton)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Spacing.xs, leading: Spacing.xl,
+                                      bottom: Spacing.xs, trailing: Spacing.xl))
     }
 
     private var providerFilterStrip: some View {
