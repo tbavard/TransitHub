@@ -1,5 +1,6 @@
 import Foundation
 import ZIPFoundation
+import os
 
 // MARK: - Line-by-line streaming reader (avoids loading huge files into memory)
 
@@ -180,6 +181,13 @@ final class GTFSService {
                 // Keep the snapshot only until the producer's period begins.
                 metadata["upcoming_feed_start"] = producerStart
                 metadata["feed_source"] = "mdb-archive:\(archive.id ?? "?")"
+            } else if keepInstalledDatabase(upcomingStart: producerStart, today: today) {
+                // No archive covers today, but the schedules already installed
+                // still do: keep them (importing would delete them) until the
+                // producer's period begins.
+                Self.logger.notice("\(self.provider.id, privacy: .public): feed starts \(producerStart, privacy: .public), keeping installed schedules")
+                onProgress(1.0, String(localized: "gtfs.ready"))
+                return
             } else {
                 // Nothing covers today: import the future feed (the UI says
                 // when service starts) and retry the archive lookup later.
@@ -224,11 +232,39 @@ final class GTFSService {
         return gtfsRoot
     }
 
+    private static let logger = Logger(subsystem: "com.transithub", category: "GTFSService")
+
     /// The MobilityDatabase snapshot of this feed covering `day`, if any.
     /// Best effort: no catalogue token / network error → nil.
     private func coveringArchive(for day: String) async -> MDBLatestDataset? {
-        guard let datasets = await Self.fetchArchives(feedId: provider.id) else { return nil }
-        return FeedPeriodSelector.covering(datasets, day: day)
+        guard let datasets = await Self.fetchArchives(feedId: provider.id) else {
+            Self.logger.notice("\(self.provider.id, privacy: .public): archive lookup unavailable (no catalogue token or network error)")
+            return nil
+        }
+        let match = FeedPeriodSelector.covering(datasets, day: day)
+        Self.logger.notice("\(self.provider.id, privacy: .public): \(datasets.count) snapshots, covering \(day, privacy: .public): \(match?.id ?? "none", privacy: .public)")
+        return match
+    }
+
+    /// True (and marks the installed database as waiting for `upcomingStart`)
+    /// when it still covers `today`, so it can be kept instead of replaced.
+    private func keepInstalledDatabase(upcomingStart: String, today: String) -> Bool {
+        let db = GTFSDatabase.forProvider(provider)
+        guard db.exists else { return false }
+        do {
+            try db.open()
+            defer { db.close() }
+            let version = try db.getMetadata("data_version")
+            let start = try db.fetchFeedStartDate()
+            let end = try db.getMetadata("feed_end_date") ?? db.fetchFeedEndDate()
+            guard version == "\(GTFSDatabase.dataVersion)",
+                  FeedPeriodSelector.canKeepInstalled(feedStart: start, feedEnd: end, today: today)
+            else { return false }
+            try db.setMetadata("upcoming_feed_start", upcomingStart)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// MobilityDatabaseService is main-actor isolated (shared token cache);
