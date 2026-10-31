@@ -41,6 +41,10 @@ struct BottomPanel<Content: View>: View {
     /// GestureState resets to 0 the instant the finger lifts, before the new
     /// detent animates in, so the panel dropped back to its old height first.
     @State private var drag: CGFloat = 0
+    /// True while a finger is resizing the panel. The content ignores touches
+    /// meanwhile: otherwise the button under the finger (e.g. "Où allez-vous ?")
+    /// still fires when the finger lifts at the end of the swipe.
+    @GestureState private var isResizing = false
     @State private var scrollTop: CGFloat = 0
     private let handleHeight: CGFloat = 32
 
@@ -79,12 +83,14 @@ struct BottomPanel<Content: View>: View {
                 .scrollIndicators(.hidden)
                 .scrollDisabled(detent != .full)
                 .onPreferenceChange(PanelScrollTopKey.self) { scrollTop = $0 }
+                .allowsHitTesting(!isResizing)
             }
             .frame(width: geo.size.width, height: height, alignment: .top)
             .background(.regularMaterial,
                         in: UnevenRoundedRectangle(topLeadingRadius: Radius.xxl,
                                                    topTrailingRadius: Radius.xxl))
             .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: -2)
+            .contentShape(Rectangle())
             .simultaneousGesture(panelDrag(total: total))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
@@ -127,6 +133,9 @@ struct BottomPanel<Content: View>: View {
         // `.global`: the panel resizes under the finger, so a drag measured in
         // the panel's own coordinates feeds back into itself and jitters.
         DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .updating($isResizing) { value, state, _ in
+                state = followsDrag(value.translation)
+            }
             .onChanged { value in
                 drag = followsDrag(value.translation) ? value.translation.height : 0
             }
