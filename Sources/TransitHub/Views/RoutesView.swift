@@ -42,34 +42,51 @@ struct RoutesView: View {
     }
 
     private var routesList: some View {
-        List {
-            if !recentRoutes.isEmpty {
-                Section {
-                    ForEach(recentRoutes) { route in
-                        NavigationLink(value: AppDestination.route(route)) {
-                            RouteRow(route: route)
-                        }
-                    }
-                } header: {
-                    Label("Récentes", systemImage: "clock.arrow.circlepath")
-                }
-            }
-            ForEach(filteredRoutesByType, id: \.label) { section in
-                Section(section.label) {
-                    ForEach(section.routes) { route in
-                        NavigationLink(value: AppDestination.route(route)) {
-                            RouteRow(route: route)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Spacing.md, pinnedViews: .sectionHeaders) {
+                if !recentRoutes.isEmpty {
+                    Section {
+                        ForEach(recentRoutes) { route in routeLink(route) }
+                    } header: {
+                        sectionHeader {
+                            Label("Récentes", systemImage: "clock.arrow.circlepath")
                         }
                     }
                 }
+                ForEach(filteredRoutesByType, id: \.label) { section in
+                    Section {
+                        ForEach(section.routes) { route in routeLink(route) }
+                    } header: {
+                        sectionHeader { Text(section.label) }
+                    }
+                }
             }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xxxl)
         }
+        .background(Theme.screenBackground)
         .searchable(text: $searchText, prompt: "Rechercher une ligne")
         .safeAreaInset(edge: .top, spacing: 0) {
             if providersStore.providers.count > 1 {
                 providerFilterStrip
             }
         }
+    }
+
+    private func routeLink(_ route: Route) -> some View {
+        NavigationLink(value: AppDestination.route(route)) {
+            RouteCard(route: route)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sectionHeader<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .font(Typography.sectionTitle)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, Spacing.sm)
+            .background(Theme.screenBackground)
     }
 
     private var providerFilterStrip: some View {
@@ -126,6 +143,44 @@ private struct ProviderFilterChip: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - Route card (lines list)
+
+private struct RouteCard: View {
+    let route: Route
+
+    var body: some View {
+        let tint = route.officialRouteColor
+        HStack(spacing: Spacing.md) {
+            Text(route.shortName)
+                .font(.system(.title3, design: .rounded, weight: .heavy))
+                .foregroundStyle(tint.readableForeground)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: 60, height: 44)
+                .background(tint.livelyGradient,
+                            in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(route.longName)
+                    .font(Typography.cardTitle)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                Label(route.routeType.label, systemImage: route.routeType.icon)
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(Typography.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .padding(Spacing.md)
+        .background(Theme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
